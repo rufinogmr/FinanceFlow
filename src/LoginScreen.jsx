@@ -13,11 +13,11 @@ const LoginScreen = ({ onLoginSuccess }) => {
     setCarregando(true);
     setErro('');
     try {
-      const user = await loginComGoogle();
-      onLoginSuccess(user);
+      await loginComGoogle();
+      // Usuário será redirecionado para autenticação do Google
+      // Após retornar, o App.tsx verificará o resultado automaticamente
     } catch (error) {
       setErro('Erro ao fazer login com Google. Tente novamente.');
-    } finally {
       setCarregando(false);
     }
   };
