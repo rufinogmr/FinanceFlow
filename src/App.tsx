@@ -79,7 +79,7 @@ const MainApp = ({ user }) => {
   const [transacaoSelecionada, setTransacaoSelecionada] = useState(null);
   const [modalPagamento, setModalPagamento] = useState(null);
 
-  // CÃ¡lculos
+  // Cálculos
   const saldoTotal = contas.reduce((acc, c) => acc + c.saldo, 0);
   
   const receitasMes = transacoes
@@ -106,7 +106,7 @@ const MainApp = ({ user }) => {
   };
 
   const exportarCSV = () => {
-    const headers = ['Data', 'Tipo', 'Categoria', 'DescriÃ§Ã£o', 'Valor', 'Conta/CartÃ£o', 'Status'];
+    const headers = ['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor', 'Conta/Cartão', 'Status'];
     const rows = transacoes.map(t => [
       t.data,
       t.tipo,
@@ -131,12 +131,12 @@ const MainApp = ({ user }) => {
     const conta = contas.find(c => c.id === contaId);
 
     if (!fatura) {
-      alert('Fatura nÃ£o encontrada!');
+      alert('Fatura não encontrada!');
       return;
     }
 
     if (!conta) {
-      alert('Conta nÃ£o encontrada!');
+      alert('Conta não encontrada!');
       return;
     }
 
@@ -162,7 +162,7 @@ const MainApp = ({ user }) => {
       tipo: 'despesa',
       valor: fatura.valorTotal,
       data: new Date().toISOString().split('T')[0],
-      categoria: 'Fatura CartÃ£o',
+      categoria: 'Fatura Cartão',
       descricao: `Pagamento fatura ${cartoes.find(c => c.id === fatura.cartaoId)?.nome}`,
       contaId: contaId,
       status: 'confirmado'
@@ -170,7 +170,7 @@ const MainApp = ({ user }) => {
 
     setTransacoes([...transacoes, novaTrans]);
     setModalPagamento(null);
-    alert('âœ… Fatura paga com sucesso!');
+    alert('✅ Fatura paga com sucesso!');
   };
 
   const renderDashboard = () => (
@@ -188,7 +188,7 @@ const MainApp = ({ user }) => {
                 R$ {saldoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
             ) : (
-              <p className="text-2xl font-bold text-gray-400">â€¢â€¢â€¢â€¢â€¢â€¢</p>
+              <p className="text-2xl font-bold text-gray-400">••••••</p>
             )}
             <button onClick={() => setMostrarSaldos(!mostrarSaldos)} className="text-gray-400 hover:text-gray-600">
               {mostrarSaldos ? <Eye size={16} /> : <EyeOff size={16} />}
@@ -198,7 +198,7 @@ const MainApp = ({ user }) => {
 
         <div className="bg-white border border-gray-200 rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500 font-medium">Receitas do MÃªs</span>
+            <span className="text-sm text-gray-500 font-medium">Receitas do Mês</span>
             <TrendingUp size={18} className="text-green-500" />
           </div>
           <p className="text-2xl font-bold text-green-600">
@@ -208,7 +208,7 @@ const MainApp = ({ user }) => {
 
         <div className="bg-white border border-gray-200 rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500 font-medium">Despesas do MÃªs</span>
+            <span className="text-sm text-gray-500 font-medium">Despesas do Mês</span>
             <TrendingUp size={18} className="text-red-500 rotate-180" />
           </div>
           <p className="text-2xl font-bold text-red-600">
@@ -268,11 +268,11 @@ const MainApp = ({ user }) => {
         </div>
       )}
 
-      {/* TransaÃ§Ãµes recentes */}
+      {/* Transações recentes */}
       <div className="bg-white border border-gray-200 rounded-lg">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">TransaÃ§Ãµes Recentes</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Transações Recentes</h3>
             <button
               onClick={() => setActiveTab('transacoes')}
               className="text-sm text-blue-600 hover:text-blue-700 font-medium"
@@ -288,8 +288,8 @@ const MainApp = ({ user }) => {
                 <div className="flex-1">
                   <p className="font-medium text-gray-900">{t.descricao}</p>
                   <p className="text-sm text-gray-500">
-                    {t.categoria} â€¢ {new Date(t.data).toLocaleDateString('pt-BR')}
-                    {t.parcelamento && ` â€¢ ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
+                    {t.categoria} • {new Date(t.data).toLocaleDateString('pt-BR')}
+                    {t.parcelamento && ` • ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
                   </p>
                 </div>
                 <div className="text-right">
@@ -313,7 +313,7 @@ const MainApp = ({ user }) => {
   const renderContas = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Contas BancÃ¡rias</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Contas Bancárias</h2>
         <div className="flex gap-2">
           <button
             onClick={exportarCSV}
@@ -354,7 +354,7 @@ const MainApp = ({ user }) => {
 
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">AgÃªncia</p>
+                  <p className="text-xs text-gray-500 mb-1">Agência</p>
                   <p className="font-mono text-sm font-medium">{conta.agencia}</p>
                 </div>
                 <div>
@@ -368,21 +368,21 @@ const MainApp = ({ user }) => {
               </div>
 
               <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                <span className="text-sm text-gray-500">Saldo DisponÃ­vel</span>
+                <span className="text-sm text-gray-500">Saldo Disponível</span>
                 <div className="flex items-center gap-2">
                   {mostrarSaldos ? (
                     <p className="text-2xl font-bold text-gray-900">
                       R$ {conta.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </p>
                   ) : (
-                    <p className="text-2xl font-bold text-gray-400">â€¢â€¢â€¢â€¢â€¢â€¢</p>
+                    <p className="text-2xl font-bold text-gray-400">••••••</p>
                   )}
                 </div>
               </div>
 
               {cartaosDaConta.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
-                  <p className="text-xs text-gray-500 mb-2">CartÃµes Vinculados</p>
+                  <p className="text-xs text-gray-500 mb-2">Cartões Vinculados</p>
                   <div className="flex flex-wrap gap-2">
                     {cartaosDaConta.map(c => (
                       <span key={c.id} className="px-3 py-1 bg-gray-100 text-gray-700 text-xs rounded-full font-medium">
@@ -402,7 +402,7 @@ const MainApp = ({ user }) => {
   const renderCartoes = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">CartÃµes de CrÃ©dito</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Cartões de Crédito</h2>
         <button
           onClick={() => {
             setTipoModal('cartao');
@@ -412,7 +412,7 @@ const MainApp = ({ user }) => {
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
         >
           <Plus size={16} />
-          Novo CartÃ£o
+          Novo Cartão
         </button>
       </div>
 
@@ -484,7 +484,7 @@ const MainApp = ({ user }) => {
                           <p className="font-medium text-gray-900">{t.descricao}</p>
                           <p className="text-gray-500 text-xs">
                             {new Date(t.data).toLocaleDateString('pt-BR')}
-                            {t.parcelamento && ` â€¢ ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
+                            {t.parcelamento && ` • ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
                           </p>
                         </div>
                         <p className="font-medium text-gray-900">
@@ -512,7 +512,7 @@ const MainApp = ({ user }) => {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">TransaÃ§Ãµes</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Transações</h2>
           <div className="flex gap-2">
             <select
               value={filtroTransacoes}
@@ -532,7 +532,7 @@ const MainApp = ({ user }) => {
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
             >
               <Plus size={16} />
-              Nova TransaÃ§Ã£o
+              Nova Transação
             </button>
           </div>
         </div>
@@ -549,11 +549,11 @@ const MainApp = ({ user }) => {
                   <p className="font-medium text-gray-900">{t.descricao}</p>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm text-gray-500">{t.categoria}</span>
-                    <span className="text-gray-300">â€¢</span>
+                    <span className="text-gray-300">•</span>
                     <span className="text-sm text-gray-500">{new Date(t.data).toLocaleDateString('pt-BR')}</span>
                     {t.parcelamento && (
                       <>
-                        <span className="text-gray-300">â€¢</span>
+                        <span className="text-gray-300">•</span>
                         <span className="text-sm text-purple-600 font-medium">
                           {t.parcelamento.parcelaAtual}/{t.parcelamento.parcelas}x
                         </span>
@@ -590,9 +590,9 @@ const MainApp = ({ user }) => {
       ========================================
                    RECIBO
       ========================================
-      
+
       Data: ${new Date(transacao.data).toLocaleDateString('pt-BR')}
-      DescriÃ§Ã£o: ${transacao.descricao}
+      Descrição: ${transacao.descricao}
       Categoria: ${transacao.categoria}
       
       Tipo: ${transacao.tipo === 'receita' ? 'RECEITA' : 'DESPESA'}
@@ -601,12 +601,12 @@ const MainApp = ({ user }) => {
       ${transacao.parcelamento ? `Parcelamento: ${transacao.parcelamento.parcelas}x de R$ ${transacao.parcelamento.valorParcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
       
       ${conta ? `Conta: ${conta.nome} - ${conta.banco}` : ''}
-      ${cartao ? `CartÃ£o: ${cartao.nome} - ${cartao.numero}` : ''}
-      
+      ${cartao ? `Cartão: ${cartao.nome} - ${cartao.numero}` : ''}
+
       Status: ${transacao.status.toUpperCase()}
-      
+
       ========================================
-      ID da TransaÃ§Ã£o: #${transacao.id}
+      ID da Transação: #${transacao.id}
       Gerado em: ${new Date().toLocaleString('pt-BR')}
       ========================================
     `;
@@ -615,7 +615,7 @@ const MainApp = ({ user }) => {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Recibo - TransaÃ§Ã£o #${transacao.id}</title>
+          <title>Recibo - Transação #${transacao.id}</title>
           <style>
             body { font-family: 'Courier New', monospace; padding: 40px; }
             pre { white-space: pre-wrap; }
@@ -640,9 +640,9 @@ const MainApp = ({ user }) => {
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
           <h3 className="text-xl font-bold text-gray-900 mb-4">
-            {tipoModal === 'transacao' && 'Nova TransaÃ§Ã£o'}
+            {tipoModal === 'transacao' && 'Nova Transação'}
             {tipoModal === 'conta' && 'Nova Conta'}
-            {tipoModal === 'cartao' && 'Novo CartÃ£o'}
+            {tipoModal === 'cartao' && 'Novo Cartão'}
           </h3>
 
           {tipoModal === 'transacao' && (
@@ -661,7 +661,7 @@ const MainApp = ({ user }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">DescriÃ§Ã£o</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
                 <input
                   type="text"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -699,15 +699,15 @@ const MainApp = ({ user }) => {
                   onChange={(e) => setFormData({...formData, categoria: e.target.value})}
                 >
                   <option value="">Selecione</option>
-                  <option value="AlimentaÃ§Ã£o">AlimentaÃ§Ã£o</option>
+                  <option value="Alimentação">Alimentação</option>
                   <option value="Transporte">Transporte</option>
                   <option value="Moradia">Moradia</option>
-                  <option value="SaÃºde">SaÃºde</option>
-                  <option value="EducaÃ§Ã£o">EducaÃ§Ã£o</option>
+                  <option value="Saúde">Saúde</option>
+                  <option value="Educação">Educação</option>
                   <option value="Lazer">Lazer</option>
-                  <option value="EletrÃ´nicos">EletrÃ´nicos</option>
+                  <option value="Eletrônicos">Eletrônicos</option>
                   <option value="Assinaturas">Assinaturas</option>
-                  <option value="SalÃ¡rio">SalÃ¡rio</option>
+                  <option value="Salário">Salário</option>
                   <option value="Investimento">Investimento</option>
                 </select>
               </div>
@@ -723,7 +723,7 @@ const MainApp = ({ user }) => {
                     checked={formData.contaId && !formData.cartaoId}
                     onChange={() => setFormData({...formData, contaId: contas[0]?.id, cartaoId: null})}
                   />
-                  <span className="text-sm">Conta BancÃ¡ria</span>
+                  <span className="text-sm">Conta Bancária</span>
                 </label>
 
                 {formData.contaId && !formData.cartaoId && (
@@ -744,7 +744,7 @@ const MainApp = ({ user }) => {
                     checked={formData.cartaoId}
                     onChange={() => setFormData({...formData, cartaoId: cartoes[0]?.id, contaId: null})}
                   />
-                  <span className="text-sm">CartÃ£o de CrÃ©dito</span>
+                  <span className="text-sm">Cartão de Crédito</span>
                 </label>
 
                 {formData.cartaoId && (
@@ -773,7 +773,7 @@ const MainApp = ({ user }) => {
                           type="number"
                           min="2"
                           max="24"
-                          placeholder="NÃºmero de parcelas"
+                          placeholder="Número de parcelas"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                           value={formData.numeroParcelas || ''}
                           onChange={(e) => setFormData({...formData, numeroParcelas: e.target.value})}
@@ -810,14 +810,14 @@ const MainApp = ({ user }) => {
               <div className="grid grid-cols-2 gap-3">
                 <input
                   type="text"
-                  placeholder="AgÃªncia"
+                  placeholder="Agência"
                   className="px-3 py-2 border border-gray-300 rounded-lg"
                   value={formData.agencia || ''}
                   onChange={(e) => setFormData({...formData, agencia: e.target.value})}
                 />
                 <input
                   type="text"
-                  placeholder="NÃºmero da conta"
+                  placeholder="Número da conta"
                   className="px-3 py-2 border border-gray-300 rounded-lg"
                   value={formData.numero || ''}
                   onChange={(e) => setFormData({...formData, numero: e.target.value})}
@@ -830,7 +830,7 @@ const MainApp = ({ user }) => {
               >
                 <option value="">Tipo de conta</option>
                 <option value="corrente">Conta Corrente</option>
-                <option value="poupanca">PoupanÃ§a</option>
+                <option value="poupanca">Poupança</option>
               </select>
               <input
                 type="number"
@@ -846,14 +846,14 @@ const MainApp = ({ user }) => {
             <div className="space-y-4">
               <input
                 type="text"
-                placeholder="Nome do cartÃ£o"
+                placeholder="Nome do cartão"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 value={formData.nome || ''}
                 onChange={(e) => setFormData({...formData, nome: e.target.value})}
               />
               <input
                 type="text"
-                placeholder="NÃºmero do cartÃ£o"
+                placeholder="Número do cartão"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 value={formData.numero || ''}
                 onChange={(e) => setFormData({...formData, numero: e.target.value})}
@@ -916,7 +916,7 @@ const MainApp = ({ user }) => {
             </button>
             <button
               onClick={() => {
-                // Aqui iria a lÃ³gica de salvar
+                // Aqui iria a lógica de salvar
                 setModalAberto(false);
               }}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
@@ -940,12 +940,12 @@ const MainApp = ({ user }) => {
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg p-6 max-w-lg w-full">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-gray-900">Detalhes da TransaÃ§Ã£o</h3>
+            <h3 className="text-xl font-bold text-gray-900">Detalhes da Transação</h3>
             <button
               onClick={() => setTransacaoSelecionada(null)}
               className="text-gray-400 hover:text-gray-600"
             >
-              âœ•
+              ✕
             </button>
           </div>
 
@@ -980,7 +980,7 @@ const MainApp = ({ user }) => {
             </div>
 
             <div>
-              <p className="text-sm text-gray-500 mb-1">DescriÃ§Ã£o</p>
+              <p className="text-sm text-gray-500 mb-1">Descrição</p>
               <p className="font-medium">{t.descricao}</p>
             </div>
 
@@ -998,13 +998,13 @@ const MainApp = ({ user }) => {
 
             {cartao && (
               <div>
-                <p className="text-sm text-gray-500 mb-1">CartÃ£o</p>
+                <p className="text-sm text-gray-500 mb-1">Cartão</p>
                 <p className="font-medium">{cartao.nome} - {cartao.numero}</p>
               </div>
             )}
 
             <div className="pt-4 border-t border-gray-200">
-              <p className="text-xs text-gray-500">ID da TransaÃ§Ã£o: #{t.id}</p>
+              <p className="text-xs text-gray-500">ID da Transação: #{t.id}</p>
             </div>
           </div>
 
@@ -1149,9 +1149,9 @@ const MainApp = ({ user }) => {
           <nav className="flex gap-8">
             {[
               { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={18} /> },
-              { id: 'transacoes', label: 'TransaÃ§Ãµes', icon: <DollarSign size={18} /> },
+              { id: 'transacoes', label: 'Transações', icon: <DollarSign size={18} /> },
               { id: 'contas', label: 'Contas', icon: <Wallet size={18} /> },
-              { id: 'cartoes', label: 'CartÃµes', icon: <CreditCard size={18} /> }
+              { id: 'cartoes', label: 'Cartões', icon: <CreditCard size={18} /> }
             ].map(tab => (
               <button
                 key={tab.id}
