@@ -9,25 +9,31 @@ const FinanceApp = () => {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Verificar resultado do redirect do Google ao carregar
+  // Verificar resultado do redirect do Google e observar autenticação
   useEffect(() => {
-    const checkRedirect = async () => {
+    let unsubscribe;
+
+    const initAuth = async () => {
       try {
+        // Primeiro verifica se há um redirect pendente
         await verificarRedirectLogin();
       } catch (error) {
         console.error('Erro ao verificar redirect:', error);
+      } finally {
+        // Só depois inicia o observer de autenticação
+        unsubscribe = observarAuth((currentUser) => {
+          console.log('Auth state changed:', currentUser?.email || 'no user');
+          setUser(currentUser);
+          setAuthLoading(false);
+        });
       }
     };
-    checkRedirect();
-  }, []);
 
-  // Observar mudanças de autenticação
-  useEffect(() => {
-    const unsubscribe = observarAuth((currentUser) => {
-      setUser(currentUser);
-      setAuthLoading(false);
-    });
-    return () => unsubscribe();
+    initAuth();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   // Se ainda está carregando auth, mostra loading
