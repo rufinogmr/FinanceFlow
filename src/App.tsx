@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Download, Upload, Search, Filter, MoreVertical, ChevronDown, ChevronRight, Eye, EyeOff, FileText, BarChart3, TrendingUp, CreditCard, Wallet, DollarSign, Calendar, AlertCircle, Bell, LogOut } from 'lucide-react';
 import LoginScreen from './LoginScreen';
-import { observarAuth, logout, verificarRedirectLogin } from './firebase';
+import { observarAuth, logout } from './firebase';
 import { useFirebaseData } from './useFirebaseData';
 
 const FinanceApp = () => {
@@ -9,31 +9,15 @@ const FinanceApp = () => {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Verificar resultado do redirect do Google e observar autenticação
+  // Observar mudanças de autenticação
   useEffect(() => {
-    let unsubscribe;
+    const unsubscribe = observarAuth((currentUser) => {
+      console.log('Auth state changed:', currentUser?.email || 'no user');
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
 
-    const initAuth = async () => {
-      try {
-        // Primeiro verifica se há um redirect pendente
-        await verificarRedirectLogin();
-      } catch (error) {
-        console.error('Erro ao verificar redirect:', error);
-      } finally {
-        // Só depois inicia o observer de autenticação
-        unsubscribe = observarAuth((currentUser) => {
-          console.log('Auth state changed:', currentUser?.email || 'no user');
-          setUser(currentUser);
-          setAuthLoading(false);
-        });
-      }
-    };
-
-    initAuth();
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
   // Se ainda está carregando auth, mostra loading

@@ -13,11 +13,18 @@ const LoginScreen = ({ onLoginSuccess }) => {
     setCarregando(true);
     setErro('');
     try {
-      await loginComGoogle();
-      // Usuário será redirecionado para autenticação do Google
-      // Após retornar, o App.tsx verificará o resultado automaticamente
+      const user = await loginComGoogle();
+      // O onAuthStateChanged no App.tsx detectará a mudança automaticamente
+      // Não precisamos chamar onLoginSuccess manualmente
     } catch (error) {
-      setErro('Erro ao fazer login com Google. Tente novamente.');
+      console.error('Erro no login Google:', error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        setErro('Login cancelado. Tente novamente.');
+      } else if (error.code === 'auth/popup-blocked') {
+        setErro('Popup bloqueado. Permita popups e tente novamente.');
+      } else {
+        setErro('Erro ao fazer login com Google. Tente novamente.');
+      }
       setCarregando(false);
     }
   };
