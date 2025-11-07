@@ -88,6 +88,10 @@ const MainApp = ({ user }) => {
   const [transacoesImportadas, setTransacoesImportadas] = useState([]);
   const [importandoArquivo, setImportandoArquivo] = useState(false);
 
+  // Estados para seleção múltipla
+  const [transacoesSelecionadas, setTransacoesSelecionadas] = useState([]);
+  const [modoSelecao, setModoSelecao] = useState(false);
+
   // Cálculos
   const saldoTotal = contas.reduce((acc, c) => acc + c.saldo, 0);
   
@@ -555,6 +559,37 @@ const MainApp = ({ user }) => {
     </div>
   );
 
+  // Funções para seleção múltipla de transações
+  const toggleSelecaoTransacao = (transacaoId) => {
+    setTransacoesSelecionadas(prev => {
+      if (prev.includes(transacaoId)) {
+        return prev.filter(id => id !== transacaoId);
+      } else {
+        return [...prev, transacaoId];
+      }
+    });
+  };
+
+  const toggleSelecionarTodas = (transacoesFiltradas) => {
+    const todosIds = transacoesFiltradas.map(t => t.id);
+    if (transacoesSelecionadas.length === todosIds.length) {
+      setTransacoesSelecionadas([]);
+    } else {
+      setTransacoesSelecionadas(todosIds);
+    }
+  };
+
+  const deletarTransacoesSelecionadas = async () => {
+    if (transacoesSelecionadas.length === 0) return;
+
+    if (window.confirm(`Deseja realmente deletar ${transacoesSelecionadas.length} transação(ões)?`)) {
+      const transacoesRestantes = transacoes.filter(t => !transacoesSelecionadas.includes(t.id));
+      setTransacoes(transacoesRestantes);
+      setTransacoesSelecionadas([]);
+      setModoSelecao(false);
+    }
+  };
+
   const renderTransacoes = () => {
     const transacoesFiltradas = transacoes.filter(t => {
       if (filtroTransacoes === 'todos') return true;
@@ -577,44 +612,114 @@ const MainApp = ({ user }) => {
               <option value="receitas">Receitas</option>
               <option value="despesas">Despesas</option>
             </select>
-            <button
-              onClick={() => setModalImportacao(true)}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm font-medium"
-              title="Importar transações de arquivo OFX ou CSV"
-            >
-              <Upload size={16} />
-              Importar
-            </button>
-            <button
-              onClick={exportarCSV}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 text-sm font-medium"
-              title="Exportar transações para CSV"
-            >
-              <Download size={16} />
-              Exportar
-            </button>
-            <button
-              onClick={() => {
-                setTipoModal('transacao');
-                setFormData({});
-                setModalAberto(true);
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
-            >
-              <Plus size={16} />
-              Nova Transação
-            </button>
+            {!modoSelecao ? (
+              <>
+                <button
+                  onClick={() => {
+                    setModoSelecao(true);
+                    setTransacoesSelecionadas([]);
+                  }}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm font-medium"
+                  title="Selecionar múltiplas transações"
+                >
+                  <Filter size={16} />
+                  Selecionar
+                </button>
+                <button
+                  onClick={() => setModalImportacao(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm font-medium"
+                  title="Importar transações de arquivo OFX ou CSV"
+                >
+                  <Upload size={16} />
+                  Importar
+                </button>
+                <button
+                  onClick={exportarCSV}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 text-sm font-medium"
+                  title="Exportar transações para CSV"
+                >
+                  <Download size={16} />
+                  Exportar
+                </button>
+                <button
+                  onClick={() => {
+                    setTipoModal('transacao');
+                    setFormData({});
+                    setModalAberto(true);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
+                >
+                  <Plus size={16} />
+                  Nova Transação
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => {
+                    setModoSelecao(false);
+                    setTransacoesSelecionadas([]);
+                  }}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center gap-2 text-sm font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={deletarTransacoesSelecionadas}
+                  disabled={transacoesSelecionadas.length === 0}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Deletar ({transacoesSelecionadas.length})
+                </button>
+              </>
+            )}
           </div>
         </div>
 
+        {modoSelecao && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={transacoesSelecionadas.length === transacoesFiltradas.length && transacoesFiltradas.length > 0}
+                onChange={() => toggleSelecionarTodas(transacoesFiltradas)}
+                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-blue-900">
+                {transacoesSelecionadas.length === transacoesFiltradas.length && transacoesFiltradas.length > 0
+                  ? 'Desmarcar todas'
+                  : 'Selecionar todas'}
+              </span>
+            </div>
+            <span className="text-sm text-blue-700">
+              {transacoesSelecionadas.length} de {transacoesFiltradas.length} selecionadas
+            </span>
+          </div>
+        )}
+
         <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-200">
           {transacoesFiltradas.map(t => (
-            <div 
-              key={t.id} 
-              className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-              onClick={() => setTransacaoSelecionada(t)}
+            <div
+              key={t.id}
+              className={`p-4 transition-colors ${modoSelecao ? 'hover:bg-blue-50' : 'hover:bg-gray-50 cursor-pointer'}`}
+              onClick={() => {
+                if (modoSelecao) {
+                  toggleSelecaoTransacao(t.id);
+                } else {
+                  setTransacaoSelecionada(t);
+                }
+              }}
             >
               <div className="flex items-center justify-between">
+                {modoSelecao && (
+                  <input
+                    type="checkbox"
+                    checked={transacoesSelecionadas.includes(t.id)}
+                    onChange={() => toggleSelecaoTransacao(t.id)}
+                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 mr-4"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                )}
                 <div className="flex-1">
                   <p className="font-medium text-gray-900">{t.descricao}</p>
                   <div className="flex items-center gap-2 mt-1">
@@ -642,7 +747,7 @@ const MainApp = ({ user }) => {
                       {t.status}
                     </span>
                   </div>
-                  <ChevronRight size={18} className="text-gray-400" />
+                  {!modoSelecao && <ChevronRight size={18} className="text-gray-400" />}
                 </div>
               </div>
             </div>
