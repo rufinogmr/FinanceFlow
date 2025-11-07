@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { 
-  observarContas, 
-  observarCartoes, 
-  observarTransacoes, 
+import {
+  observarContas,
+  observarCartoes,
+  observarTransacoes,
   observarFaturas,
   salvarConta,
   salvarCartao,
   salvarTransacao,
   salvarFatura,
-  deletarConta
+  deletarConta,
+  deletarTransacao,
+  deletarCartao
 } from './firebase';
 
 // Hook para gerenciar dados do usuário com Firebase
@@ -83,6 +85,14 @@ export const useFirebaseData = (userId) => {
     await salvarTransacao(userId, transacao);
   };
 
+  const removerTransacao = async (transacaoId) => {
+    await deletarTransacao(userId, transacaoId);
+  };
+
+  const removerCartao = async (cartaoId) => {
+    await deletarCartao(userId, cartaoId);
+  };
+
   const adicionarFatura = async (fatura) => {
     await salvarFatura(userId, fatura);
   };
@@ -102,8 +112,10 @@ export const useFirebaseData = (userId) => {
     removerConta,
     adicionarCartao,
     atualizarCartao,
+    removerCartao,
     adicionarTransacao,
     atualizarTransacao,
+    removerTransacao,
     adicionarFatura,
     atualizarFatura,
     setContas,
