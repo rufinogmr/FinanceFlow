@@ -3,6 +3,7 @@ import { Plus, Download, Upload, Search, Filter, MoreVertical, ChevronDown, Chev
 import LoginScreen from './LoginScreen';
 import { observarAuth, logout, verificarRedirectLogin } from './firebase';
 import { useFirebaseData } from './useFirebaseData';
+import { importarArquivo } from './importUtils';
 
 const FinanceApp = () => {
   // Estado de autenticação
@@ -78,6 +79,10 @@ const MainApp = ({ user }) => {
   const [formData, setFormData] = useState({});
   const [transacaoSelecionada, setTransacaoSelecionada] = useState(null);
   const [modalPagamento, setModalPagamento] = useState(null);
+  const [modalImportacao, setModalImportacao] = useState(false);
+  const [arquivoImportacao, setArquivoImportacao] = useState(null);
+  const [transacoesImportadas, setTransacoesImportadas] = useState([]);
+  const [importandoArquivo, setImportandoArquivo] = useState(false);
 
   // Cálculos
   const saldoTotal = contas.reduce((acc, c) => acc + c.saldo, 0);
@@ -124,6 +129,51 @@ const MainApp = ({ user }) => {
     a.href = url;
     a.download = `transacoes_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+  };
+
+  const processarImportacao = async () => {
+    if (!arquivoImportacao) {
+      alert('Por favor, selecione um arquivo');
+      return;
+    }
+
+    setImportandoArquivo(true);
+    try {
+      const transacoesProcessadas = await importarArquivo(arquivoImportacao);
+      setTransacoesImportadas(transacoesProcessadas);
+      alert(`${transacoesProcessadas.length} transações processadas com sucesso!`);
+    } catch (erro) {
+      alert(`Erro ao importar arquivo: ${erro.message}`);
+      console.error('Erro na importação:', erro);
+    } finally {
+      setImportandoArquivo(false);
+    }
+  };
+
+  const confirmarImportacao = () => {
+    if (transacoesImportadas.length === 0) {
+      alert('Nenhuma transação para importar');
+      return;
+    }
+
+    const novasTransacoes = transacoesImportadas.map((t, index) => ({
+      ...t,
+      id: transacoes.length + index + 1
+    }));
+
+    setTransacoes([...transacoes, ...novasTransacoes]);
+    alert(`${novasTransacoes.length} transações importadas com sucesso!`);
+
+    // Limpar e fechar modal
+    setModalImportacao(false);
+    setArquivoImportacao(null);
+    setTransacoesImportadas([]);
+  };
+
+  const cancelarImportacao = () => {
+    setModalImportacao(false);
+    setArquivoImportacao(null);
+    setTransacoesImportadas([]);
   };
 
   const pagarFatura = (faturaId, contaId) => {
@@ -523,6 +573,22 @@ const MainApp = ({ user }) => {
               <option value="receitas">Receitas</option>
               <option value="despesas">Despesas</option>
             </select>
+            <button
+              onClick={() => setModalImportacao(true)}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm font-medium"
+              title="Importar transações de arquivo OFX ou CSV"
+            >
+              <Upload size={16} />
+              Importar
+            </button>
+            <button
+              onClick={exportarCSV}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 text-sm font-medium"
+              title="Exportar transações para CSV"
+            >
+              <Download size={16} />
+              Exportar
+            </button>
             <button
               onClick={() => {
                 setTipoModal('transacao');
@@ -1092,6 +1158,120 @@ const MainApp = ({ user }) => {
     );
   };
 
+  const renderModalImportacao = () => {
+    if (!modalImportacao) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <h3 className="text-xl font-bold text-gray-900 mb-4">Importar Transações</h3>
+
+          {/* Seleção de arquivo */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Selecione um arquivo OFX ou CSV
+            </label>
+            <input
+              type="file"
+              accept=".ofx,.csv"
+              onChange={(e) => setArquivoImportacao(e.target.files[0])}
+              className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none"
+            />
+            <p className="mt-2 text-sm text-gray-500">
+              Formatos aceitos: .OFX (extratos bancários) e .CSV (planilhas)
+            </p>
+          </div>
+
+          {/* Botões de ação */}
+          <div className="flex gap-3 mb-6">
+            <button
+              onClick={processarImportacao}
+              disabled={!arquivoImportacao || importandoArquivo}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {importandoArquivo ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Processando...
+                </>
+              ) : (
+                <>
+                  <FileText size={16} />
+                  Processar Arquivo
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Preview das transações importadas */}
+          {transacoesImportadas.length > 0 && (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-semibold text-gray-900">
+                  {transacoesImportadas.length} transações encontradas
+                </h4>
+              </div>
+
+              <div className="border border-gray-200 rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoria</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descrição</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {transacoesImportadas.map((t, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          {new Date(t.data).toLocaleDateString('pt-BR')}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            t.tipo === 'receita' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {t.tipo}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{t.categoria}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{t.descricao}</td>
+                        <td className="px-4 py-3 text-sm text-right font-medium">
+                          <span className={t.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}>
+                            R$ {t.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Botões finais */}
+          <div className="flex gap-3">
+            <button
+              onClick={confirmarImportacao}
+              disabled={transacoesImportadas.length === 0}
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
+            >
+              Confirmar Importação ({transacoesImportadas.length})
+            </button>
+            <button
+              onClick={cancelarImportacao}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1181,6 +1361,7 @@ const MainApp = ({ user }) => {
       {renderModal()}
       {renderModalDetalhesTransacao()}
       {renderModalPagamento()}
+      {renderModalImportacao()}
     </div>
   );
 };
