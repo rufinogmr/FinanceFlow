@@ -930,6 +930,7 @@ const MainApp = ({ user }) => {
                     }
 
                     const novaConta = {
+                      id: Date.now(),
                       nome: formData.nome,
                       banco: formData.banco,
                       agencia: formData.agencia || '',
@@ -950,6 +951,7 @@ const MainApp = ({ user }) => {
                     }
 
                     const novoCartao = {
+                      id: Date.now(),
                       nome: formData.nome,
                       numero: formData.numero,
                       limite: parseFloat(formData.limite),
@@ -976,6 +978,7 @@ const MainApp = ({ user }) => {
                     }
 
                     const novaTransacao = {
+                      id: Date.now(),
                       tipo: formData.tipo,
                       descricao: formData.descricao,
                       valor: parseFloat(formData.valor),
