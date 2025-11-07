@@ -64,7 +64,11 @@ const MainApp = ({ user }) => {
     setCartoes,
     setTransacoes,
     setFaturas,
+    adicionarConta,
     atualizarConta,
+    adicionarCartao,
+    atualizarCartao,
+    adicionarTransacao,
     atualizarTransacao,
     atualizarFatura
   } = useFirebaseData(user.uid);
@@ -981,9 +985,97 @@ const MainApp = ({ user }) => {
               Cancelar
             </button>
             <button
-              onClick={() => {
-                // Aqui iria a lógica de salvar
-                setModalAberto(false);
+              onClick={async () => {
+                try {
+                  // Validação e salvamento baseado no tipo de modal
+                  if (tipoModal === 'conta') {
+                    // Validar campos obrigatórios
+                    if (!formData.nome || !formData.banco || !formData.tipo) {
+                      alert('Por favor, preencha todos os campos obrigatórios (Nome, Banco e Tipo)');
+                      return;
+                    }
+
+                    const novaConta = {
+                      id: Date.now(),
+                      nome: formData.nome,
+                      banco: formData.banco,
+                      agencia: formData.agencia || '',
+                      numero: formData.numero || '',
+                      tipo: formData.tipo,
+                      saldo: parseFloat(formData.saldo) || 0,
+                      dataCriacao: new Date().toISOString()
+                    };
+
+                    await adicionarConta(novaConta);
+                    alert('Conta criada com sucesso!');
+                  }
+                  else if (tipoModal === 'cartao') {
+                    // Validar campos obrigatórios
+                    if (!formData.nome || !formData.numero || !formData.limite || !formData.bandeira) {
+                      alert('Por favor, preencha todos os campos obrigatórios (Nome, Número, Limite e Bandeira)');
+                      return;
+                    }
+
+                    const novoCartao = {
+                      id: Date.now(),
+                      nome: formData.nome,
+                      numero: formData.numero,
+                      limite: parseFloat(formData.limite),
+                      diaFechamento: parseInt(formData.diaFechamento) || 1,
+                      diaVencimento: parseInt(formData.diaVencimento) || 10,
+                      bandeira: formData.bandeira,
+                      contaVinculada: formData.contaVinculada || null,
+                      dataCriacao: new Date().toISOString()
+                    };
+
+                    await adicionarCartao(novoCartao);
+                    alert('Cartão criado com sucesso!');
+                  }
+                  else if (tipoModal === 'transacao') {
+                    // Validar campos obrigatórios
+                    if (!formData.tipo || !formData.descricao || !formData.valor || !formData.data || !formData.categoria) {
+                      alert('Por favor, preencha todos os campos obrigatórios (Tipo, Descrição, Valor, Data e Categoria)');
+                      return;
+                    }
+
+                    if (!formData.contaId && !formData.cartaoId) {
+                      alert('Por favor, selecione uma forma de pagamento (Conta Bancária ou Cartão de Crédito)');
+                      return;
+                    }
+
+                    const novaTransacao = {
+                      id: Date.now(),
+                      tipo: formData.tipo,
+                      descricao: formData.descricao,
+                      valor: parseFloat(formData.valor),
+                      data: formData.data,
+                      categoria: formData.categoria,
+                      contaId: formData.contaId || null,
+                      cartaoId: formData.cartaoId || null,
+                      status: 'confirmado',
+                      dataCriacao: new Date().toISOString()
+                    };
+
+                    // Adicionar informações de parcelamento se for parcelado
+                    if (formData.parcelado && formData.numeroParcelas) {
+                      novaTransacao.parcelamento = {
+                        parcelas: parseInt(formData.numeroParcelas),
+                        valorParcela: parseFloat(formData.valor) / parseInt(formData.numeroParcelas),
+                        parcelaAtual: 1
+                      };
+                    }
+
+                    await adicionarTransacao(novaTransacao);
+                    alert('Transação criada com sucesso!');
+                  }
+
+                  // Fechar modal e limpar form
+                  setModalAberto(false);
+                  setFormData({});
+                } catch (error) {
+                  console.error('Erro ao salvar:', error);
+                  alert('Erro ao salvar. Por favor, tente novamente.');
+                }
               }}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
             >
