@@ -591,12 +591,20 @@ const MainApp = ({ user }) => {
   };
 
   const renderTransacoes = () => {
+    console.log('=== DEBUG FILTRO ===');
+    console.log('Total de transações:', transacoes.length);
+    console.log('Filtro atual:', filtroTransacoes);
+    console.log('Transações:', transacoes);
+
     const transacoesFiltradas = transacoes.filter(t => {
       if (filtroTransacoes === 'todos') return true;
       if (filtroTransacoes === 'receitas') return t.tipo === 'receita';
       if (filtroTransacoes === 'despesas') return t.tipo === 'despesa';
       return true;
     });
+
+    console.log('Transações filtradas:', transacoesFiltradas.length);
+    console.log('Detalhes das filtradas:', transacoesFiltradas);
 
     return (
       <div className="space-y-6">
@@ -698,60 +706,71 @@ const MainApp = ({ user }) => {
         )}
 
         <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-200">
-          {transacoesFiltradas.map(t => (
-            <div
-              key={t.id}
-              className={`p-4 transition-colors ${modoSelecao ? 'hover:bg-blue-50' : 'hover:bg-gray-50 cursor-pointer'}`}
-              onClick={() => {
-                if (modoSelecao) {
-                  toggleSelecaoTransacao(t.id);
-                } else {
-                  setTransacaoSelecionada(t);
-                }
-              }}
-            >
-              <div className="flex items-center justify-between">
-                {modoSelecao && (
-                  <input
-                    type="checkbox"
-                    checked={transacoesSelecionadas.includes(t.id)}
-                    onChange={() => toggleSelecaoTransacao(t.id)}
-                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 mr-4"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                )}
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">{t.descricao}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm text-gray-500">{t.categoria}</span>
-                    <span className="text-gray-300">•</span>
-                    <span className="text-sm text-gray-500">{new Date(t.data).toLocaleDateString('pt-BR')}</span>
-                    {t.parcelamento && (
-                      <>
-                        <span className="text-gray-300">•</span>
-                        <span className="text-sm text-purple-600 font-medium">
-                          {t.parcelamento.parcelaAtual}/{t.parcelamento.parcelas}x
-                        </span>
-                      </>
-                    )}
+          {transacoesFiltradas.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <p className="text-lg font-medium mb-2">Nenhuma transação encontrada</p>
+              <p className="text-sm">
+                {transacoes.length === 0
+                  ? 'Adicione sua primeira transação para começar'
+                  : `Nenhuma transação do tipo "${filtroTransacoes}" encontrada`}
+              </p>
+            </div>
+          ) : (
+            transacoesFiltradas.map(t => (
+              <div
+                key={t.id}
+                className={`p-4 transition-colors ${modoSelecao ? 'hover:bg-blue-50' : 'hover:bg-gray-50 cursor-pointer'}`}
+                onClick={() => {
+                  if (modoSelecao) {
+                    toggleSelecaoTransacao(t.id);
+                  } else {
+                    setTransacaoSelecionada(t);
+                  }
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  {modoSelecao && (
+                    <input
+                      type="checkbox"
+                      checked={transacoesSelecionadas.includes(t.id)}
+                      onChange={() => toggleSelecaoTransacao(t.id)}
+                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 mr-4"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  )}
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">{t.descricao}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm text-gray-500">{t.categoria}</span>
+                      <span className="text-gray-300">•</span>
+                      <span className="text-sm text-gray-500">{new Date(t.data).toLocaleDateString('pt-BR')}</span>
+                      {t.parcelamento && (
+                        <>
+                          <span className="text-gray-300">•</span>
+                          <span className="text-sm text-purple-600 font-medium">
+                            {t.parcelamento.parcelaAtual}/{t.parcelamento.parcelas}x
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="text-right flex items-center gap-3">
-                  <div>
-                    <p className={`font-semibold ${t.tipo === 'receita' ? 'text-green-600' : 'text-gray-900'}`}>
-                      {t.tipo === 'receita' ? '+' : '-'} R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </p>
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      t.status === 'confirmado' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                    }`}>
-                      {t.status}
-                    </span>
+                  <div className="text-right flex items-center gap-3">
+                    <div>
+                      <p className={`font-semibold ${t.tipo === 'receita' ? 'text-green-600' : 'text-gray-900'}`}>
+                        {t.tipo === 'receita' ? '+' : '-'} R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        t.status === 'confirmado' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {t.status}
+                      </span>
+                    </div>
+                    {!modoSelecao && <ChevronRight size={18} className="text-gray-400" />}
                   </div>
-                  {!modoSelecao && <ChevronRight size={18} className="text-gray-400" />}
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     );
