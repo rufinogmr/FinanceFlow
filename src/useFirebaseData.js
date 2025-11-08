@@ -104,7 +104,7 @@ export const useFirebaseData = (userId) => {
     atualizarCartao,
     adicionarTransacao,
     atualizarTransacao,
-    adicionarFatura,
+    adicionarFatura, // Já estava aqui
     atualizarFatura,
     setContas,
     setCartoes,
