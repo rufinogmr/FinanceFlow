@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Download, Upload, Search, Filter, MoreVertical, ChevronDown, ChevronRight, Eye, EyeOff, FileText, BarChart3, TrendingUp, CreditCard, Wallet, DollarSign, Calendar, AlertCircle, Bell, LogOut } from 'lucide-react';
+import { Plus, Download, Upload, Search, Filter, MoreVertical, ChevronDown, ChevronRight, Eye, EyeOff, FileText, BarChart3, TrendingUp, CreditCard, Wallet, DollarSign, Calendar, AlertCircle, Bell, LogOut, Tag, X } from 'lucide-react';
 import LoginScreen from './LoginScreen';
 import { observarAuth, logout, verificarRedirectLogin } from './firebase';
 import { useFirebaseData } from './useFirebaseData';
@@ -76,6 +76,7 @@ const MainApp = ({ user }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mostrarSaldos, setMostrarSaldos] = useState(true);
   const [filtroTransacoes, setFiltroTransacoes] = useState('todos');
+  const [filtroTags, setFiltroTags] = useState([]);
   const [expandedCard, setExpandedCard] = useState(null);
 
   const [modalAberto, setModalAberto] = useState(false);
@@ -349,6 +350,19 @@ const MainApp = ({ user }) => {
                     {t.categoria} • {new Date(t.data).toLocaleDateString('pt-BR')}
                     {t.parcelamento && ` • ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
                   </p>
+                  {t.tags && t.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {t.tags.map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-full text-xs"
+                        >
+                          <Tag size={10} />
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className={`font-semibold ${t.tipo === 'receita' ? 'text-green-600' : 'text-gray-900'}`}>
@@ -365,6 +379,88 @@ const MainApp = ({ user }) => {
           ))}
         </div>
       </div>
+
+      {/* Análise por Tags */}
+      {(() => {
+        const tagAnalysis = {};
+        transacoes.forEach(t => {
+          if (t.tags && t.tags.length > 0 && t.status === 'confirmado') {
+            t.tags.forEach(tag => {
+              if (!tagAnalysis[tag]) {
+                tagAnalysis[tag] = { receitas: 0, despesas: 0, count: 0 };
+              }
+              const valor = t.parcelamento ? t.parcelamento.valorParcela : t.valor;
+              if (t.tipo === 'receita') {
+                tagAnalysis[tag].receitas += valor;
+              } else {
+                tagAnalysis[tag].despesas += valor;
+              }
+              tagAnalysis[tag].count += 1;
+            });
+          }
+        });
+
+        const sortedTags = Object.entries(tagAnalysis)
+          .sort((a, b) => (b[1].despesas + b[1].receitas) - (a[1].despesas + a[1].receitas))
+          .slice(0, 10);
+
+        if (sortedTags.length === 0) return null;
+
+        return (
+          <div className="bg-white border border-gray-200 rounded-lg">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <Tag size={20} className="text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Análise por Tags</h3>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">Visualize suas transações agrupadas por tags</p>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                {sortedTags.map(([tag, data]) => {
+                  const total = data.receitas + data.despesas;
+                  const saldo = data.receitas - data.despesas;
+                  return (
+                    <div key={tag} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                            <Tag size={14} />
+                            {tag}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            {data.count} {data.count === 1 ? 'transação' : 'transações'}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-lg font-bold ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {saldo >= 0 ? '+' : ''} R$ {saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                          <p className="text-xs text-gray-500">Saldo</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="bg-green-50 rounded-lg p-3">
+                          <p className="text-green-700 font-medium">Receitas</p>
+                          <p className="text-green-900 font-bold text-base mt-1">
+                            R$ {data.receitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <div className="bg-red-50 rounded-lg p-3">
+                          <p className="text-red-700 font-medium">Despesas</p>
+                          <p className="text-red-900 font-bold text-base mt-1">
+                            R$ {data.despesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 
@@ -591,11 +687,22 @@ const MainApp = ({ user }) => {
   };
 
   const renderTransacoes = () => {
+    // Obter todas as tags únicas das transações
+    const allTags = [...new Set(transacoes.flatMap(t => t.tags || []))].sort();
+
     const transacoesFiltradas = transacoes.filter(t => {
-      if (filtroTransacoes === 'todos') return true;
-      if (filtroTransacoes === 'receitas') return t.tipo === 'receita';
-      if (filtroTransacoes === 'despesas') return t.tipo === 'despesa';
-      return true;
+      // Filtro por tipo
+      let passaTipo = true;
+      if (filtroTransacoes === 'receitas') passaTipo = t.tipo === 'receita';
+      if (filtroTransacoes === 'despesas') passaTipo = t.tipo === 'despesa';
+
+      // Filtro por tags
+      let passaTags = true;
+      if (filtroTags.length > 0) {
+        passaTags = filtroTags.some(tag => t.tags && t.tags.includes(tag));
+      }
+
+      return passaTipo && passaTags;
     });
 
     return (
@@ -676,6 +783,49 @@ const MainApp = ({ user }) => {
           </div>
         </div>
 
+        {/* Filtro por Tags */}
+        {allTags.length > 0 && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Tag size={16} className="text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">Filtrar por Tags:</span>
+              {filtroTags.length > 0 && (
+                <button
+                  onClick={() => setFiltroTags([])}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Limpar filtros
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {allTags.map(tag => {
+                const isSelected = filtroTags.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => {
+                      if (isSelected) {
+                        setFiltroTags(filtroTags.filter(t => t !== tag));
+                      } else {
+                        setFiltroTags([...filtroTags, tag]);
+                      }
+                    }}
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                      isSelected
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-gray-700 border border-gray-300 hover:border-blue-500 hover:text-blue-600'
+                    }`}
+                  >
+                    <Tag size={12} />
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {modoSelecao && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -735,6 +885,19 @@ const MainApp = ({ user }) => {
                       </>
                     )}
                   </div>
+                  {t.tags && t.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {t.tags.map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-xs"
+                        >
+                          <Tag size={10} />
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right flex items-center gap-3">
                   <div>
@@ -885,6 +1048,53 @@ const MainApp = ({ user }) => {
                   <option value="Salário">Salário</option>
                   <option value="Investimento">Investimento</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    placeholder="Adicionar tag (pressione Enter)"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const tagInput = e.target.value.trim();
+                        if (tagInput && (!formData.tags || !formData.tags.includes(tagInput))) {
+                          setFormData({
+                            ...formData,
+                            tags: [...(formData.tags || []), tagInput]
+                          });
+                          e.target.value = '';
+                        }
+                      }
+                    }}
+                  />
+                </div>
+                {formData.tags && formData.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {formData.tags.map((tag, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
+                      >
+                        <Tag size={12} />
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newTags = formData.tags.filter((_, i) => i !== index);
+                            setFormData({...formData, tags: newTags});
+                          }}
+                          className="ml-1 hover:text-blue-900"
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3 pt-4 border-t">
@@ -1158,7 +1368,8 @@ const MainApp = ({ user }) => {
                       contaId: formData.contaId || null,
                       cartaoId: formData.cartaoId || null,
                       status: 'confirmado',
-                      dataCriacao: new Date().toISOString()
+                      dataCriacao: new Date().toISOString(),
+                      tags: formData.tags || []
                     };
 
                     // Adicionar informações de parcelamento se for parcelado
