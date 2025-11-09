@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Download, Upload, Search, Filter, MoreVertical, ChevronDown, ChevronRight, Eye, EyeOff, FileText, BarChart3, TrendingUp, CreditCard, Wallet, DollarSign, Calendar, AlertCircle, Bell, LogOut, Tag, X } from 'lucide-react';
+import { Plus, Download, Upload, Search, Filter, MoreVertical, ChevronDown, ChevronRight, Eye, EyeOff, FileText, BarChart3, TrendingUp, CreditCard, Wallet, DollarSign, Calendar, AlertCircle, Bell, LogOut, Tag, X, Target, PieChart, Repeat, CheckCircle, TrendingDown, Edit2, Trash2, Clock } from 'lucide-react';
 import LoginScreen from './LoginScreen';
 import { observarAuth, logout, verificarRedirectLogin } from './firebase';
 import { useFirebaseData } from './useFirebaseData';
@@ -59,18 +59,33 @@ const MainApp = ({ user }) => {
     cartoes,
     transacoes,
     faturas,
+    metas,
+    orcamentos,
+    despesasRecorrentes,
     carregando: dadosCarregando,
     setContas,
     setCartoes,
     setTransacoes,
     setFaturas,
+    setMetas,
+    setOrcamentos,
+    setDespesasRecorrentes,
     adicionarConta,
     atualizarConta,
     adicionarCartao,
     atualizarCartao,
     adicionarTransacao,
     atualizarTransacao,
-    atualizarFatura
+    atualizarFatura,
+    adicionarMeta,
+    atualizarMeta,
+    removerMeta,
+    adicionarOrcamento,
+    atualizarOrcamento,
+    removerOrcamento,
+    adicionarDespesaRecorrente,
+    atualizarDespesaRecorrente,
+    removerDespesaRecorrente
   } = useFirebaseData(user.uid);
 
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -1570,6 +1585,456 @@ const MainApp = ({ user }) => {
     );
   };
 
+  const renderPlanejamento = () => {
+    const mesAtual = new Date().toISOString().slice(0, 7); // YYYY-MM
+
+    // Calcular progresso das metas
+    const calcularProgressoMeta = (meta) => {
+      const transacoesMeta = transacoes.filter(t =>
+        t.tags && t.tags.some(tag => meta.tags && meta.tags.includes(tag)) &&
+        t.tipo === 'receita' &&
+        t.status === 'confirmado'
+      );
+      const valorAtual = transacoesMeta.reduce((acc, t) => acc + t.valor, 0);
+      return { valorAtual, percentual: (valorAtual / meta.valorAlvo) * 100 };
+    };
+
+    // Calcular gastos por categoria no mês
+    const calcularGastosPorCategoria = () => {
+      const gastos = {};
+      transacoes
+        .filter(t =>
+          t.tipo === 'despesa' &&
+          t.data.startsWith(mesAtual) &&
+          (t.status === 'confirmado' || t.status === 'agendado')
+        )
+        .forEach(t => {
+          const valor = t.parcelamento ? t.parcelamento.valorParcela : t.valor;
+          gastos[t.categoria] = (gastos[t.categoria] || 0) + valor;
+        });
+      return gastos;
+    };
+
+    const gastosPorCategoria = calcularGastosPorCategoria();
+
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Target size={28} className="text-blue-600" />
+          Planejamento Financeiro
+        </h2>
+
+        {/* Seção de Metas */}
+        <div className="bg-white border border-gray-200 rounded-lg">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target size={20} className="text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Metas de Economia</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setTipoModal('meta');
+                  setFormData({});
+                  setModalAberto(true);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
+              >
+                <Plus size={16} />
+                Nova Meta
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {metas.length === 0 ? (
+              <div className="text-center py-12">
+                <Target size={48} className="mx-auto text-gray-300 mb-3" />
+                <p className="text-gray-500 mb-2">Nenhuma meta cadastrada</p>
+                <p className="text-sm text-gray-400">Crie metas para acompanhar seus objetivos financeiros</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {metas.map(meta => {
+                  const { valorAtual, percentual } = calcularProgressoMeta(meta);
+                  const diasRestantes = Math.ceil((new Date(meta.prazo) - new Date()) / (1000 * 60 * 60 * 24));
+                  const atingida = percentual >= 100;
+
+                  return (
+                    <div key={meta.id} className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-semibold text-gray-900 text-lg">{meta.nome}</h4>
+                            {atingida && (
+                              <CheckCircle size={20} className="text-green-600" />
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-500">{meta.descricao}</p>
+                          {meta.categoria && (
+                            <span className="inline-block mt-2 px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                              {meta.categoria}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (window.confirm(`Deseja realmente excluir a meta "${meta.nome}"?`)) {
+                              await removerMeta(meta.id);
+                            }
+                          }}
+                          className="text-gray-400 hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+
+                      <div className="mb-3">
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className="text-gray-600">
+                            R$ {valorAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} de R$ {meta.valorAlvo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
+                          <span className={`font-semibold ${atingida ? 'text-green-600' : 'text-blue-600'}`}>
+                            {percentual.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div
+                            className={`h-3 rounded-full transition-all ${
+                              atingida ? 'bg-green-500' : 'bg-blue-500'
+                            }`}
+                            style={{ width: `${Math.min(percentual, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-500">Prazo</p>
+                          <p className="font-medium">{new Date(meta.prazo).toLocaleDateString('pt-BR')}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Dias restantes</p>
+                          <p className={`font-medium ${diasRestantes < 30 ? 'text-orange-600' : 'text-gray-900'}`}>
+                            {diasRestantes > 0 ? diasRestantes : 0} dias
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Falta economizar</p>
+                          <p className="font-medium text-gray-900">
+                            R$ {Math.max(meta.valorAlvo - valorAtual, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+
+                      {diasRestantes > 0 && !atingida && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <p className="text-sm text-gray-600">
+                            💡 Economize <strong>R$ {((meta.valorAlvo - valorAtual) / diasRestantes * 30).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong> por mês para atingir sua meta
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Seção de Orçamentos */}
+        <div className="bg-white border border-gray-200 rounded-lg">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <PieChart size={20} className="text-green-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Orçamento Mensal por Categoria</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setTipoModal('orcamento');
+                  setFormData({});
+                  setModalAberto(true);
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm font-medium"
+              >
+                <Plus size={16} />
+                Novo Orçamento
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {orcamentos.length === 0 ? (
+              <div className="text-center py-12">
+                <PieChart size={48} className="mx-auto text-gray-300 mb-3" />
+                <p className="text-gray-500 mb-2">Nenhum orçamento definido</p>
+                <p className="text-sm text-gray-400">Defina limites de gastos por categoria para controlar suas finanças</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {orcamentos.map(orc => {
+                  const gastoAtual = gastosPorCategoria[orc.categoria] || 0;
+                  const percentualGasto = (gastoAtual / orc.limite) * 100;
+                  const ultrapassou = percentualGasto > 100;
+                  const proximo80 = percentualGasto >= 80 && !ultrapassou;
+
+                  return (
+                    <div key={orc.id} className={`border rounded-lg p-5 hover:shadow-md transition-shadow ${
+                      ultrapassou ? 'border-red-300 bg-red-50' :
+                      proximo80 ? 'border-orange-300 bg-orange-50' :
+                      'border-gray-200'
+                    }`}>
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-900 text-lg flex items-center gap-2">
+                            {orc.categoria}
+                            {ultrapassou && (
+                              <AlertCircle size={18} className="text-red-600" />
+                            )}
+                            {proximo80 && (
+                              <AlertCircle size={18} className="text-orange-600" />
+                            )}
+                          </h4>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Orçamento para {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                          </p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (window.confirm(`Deseja realmente excluir o orçamento de "${orc.categoria}"?`)) {
+                              await removerOrcamento(orc.id);
+                            }
+                          }}
+                          className="text-gray-400 hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+
+                      <div className="mb-3">
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className="text-gray-600">
+                            R$ {gastoAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} de R$ {orc.limite.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
+                          <span className={`font-semibold ${
+                            ultrapassou ? 'text-red-600' :
+                            proximo80 ? 'text-orange-600' :
+                            'text-green-600'
+                          }`}>
+                            {percentualGasto.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div
+                            className={`h-3 rounded-full transition-all ${
+                              ultrapassou ? 'bg-red-500' :
+                              proximo80 ? 'bg-orange-500' :
+                              'bg-green-500'
+                            }`}
+                            style={{ width: `${Math.min(percentualGasto, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-500">Disponível</p>
+                          <p className={`font-medium text-lg ${
+                            ultrapassou ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            R$ {Math.max(orc.limite - gastoAtual, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Status</p>
+                          <p className={`font-medium ${
+                            ultrapassou ? 'text-red-600' :
+                            proximo80 ? 'text-orange-600' :
+                            'text-green-600'
+                          }`}>
+                            {ultrapassou ? '🚨 Ultrapassado' :
+                             proximo80 ? '⚠️ Atenção' :
+                             '✅ No limite'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {ultrapassou && (
+                        <div className="mt-4 pt-4 border-t border-red-200">
+                          <p className="text-sm text-red-700">
+                            ⚠️ Você ultrapassou o orçamento em <strong>R$ {(gastoAtual - orc.limite).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Seção de Despesas Recorrentes */}
+        <div className="bg-white border border-gray-200 rounded-lg">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Repeat size={20} className="text-purple-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Despesas Recorrentes</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setTipoModal('despesaRecorrente');
+                  setFormData({});
+                  setModalAberto(true);
+                }}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm font-medium"
+              >
+                <Plus size={16} />
+                Nova Despesa Recorrente
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {despesasRecorrentes.length === 0 ? (
+              <div className="text-center py-12">
+                <Repeat size={48} className="mx-auto text-gray-300 mb-3" />
+                <p className="text-gray-500 mb-2">Nenhuma despesa recorrente cadastrada</p>
+                <p className="text-sm text-gray-400">Cadastre despesas fixas como aluguel, contas e assinaturas</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {despesasRecorrentes.map(desp => {
+                  const proximaData = new Date(desp.proximaData);
+                  const diasAteProxima = Math.ceil((proximaData - new Date()) / (1000 * 60 * 60 * 24));
+                  const ativa = desp.ativa !== false;
+
+                  return (
+                    <div key={desp.id} className={`border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow ${
+                      !ativa ? 'opacity-50' : ''
+                    }`}>
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-semibold text-gray-900 text-lg">{desp.descricao}</h4>
+                            {!ativa && (
+                              <span className="px-2 py-1 bg-gray-200 text-gray-600 rounded-full text-xs font-medium">
+                                Inativa
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-500">{desp.categoria}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={async () => {
+                              await atualizarDespesaRecorrente({
+                                ...desp,
+                                ativa: !ativa
+                              });
+                            }}
+                            className={`p-2 rounded-lg transition-colors ${
+                              ativa ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                            }`}
+                            title={ativa ? 'Desativar' : 'Ativar'}
+                          >
+                            {ativa ? <CheckCircle size={18} /> : <X size={18} />}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (window.confirm(`Deseja realmente excluir "${desp.descricao}"?`)) {
+                                await removerDespesaRecorrente(desp.id);
+                              }
+                            }}
+                            className="text-gray-400 hover:text-red-600 transition-colors p-2"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-500">Valor</p>
+                          <p className="font-semibold text-gray-900 text-lg">
+                            R$ {desp.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Frequência</p>
+                          <p className="font-medium capitalize">{desp.frequencia}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Próxima data</p>
+                          <p className="font-medium">{proximaData.toLocaleDateString('pt-BR')}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Dias restantes</p>
+                          <p className={`font-medium ${diasAteProxima <= 3 ? 'text-orange-600' : 'text-gray-900'}`}>
+                            {diasAteProxima > 0 ? diasAteProxima : 0} dias
+                            {diasAteProxima <= 3 && ' ⚠️'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {desp.contaId && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <p className="text-xs text-gray-500">
+                            Conta: <span className="font-medium text-gray-700">
+                              {contas.find(c => c.id === desp.contaId)?.nome || 'N/A'}
+                            </span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Resumo mensal */}
+                <div className="mt-6 pt-6 border-t-2 border-gray-300">
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-5">
+                    <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                      <Calendar size={18} />
+                      Resumo Mensal de Despesas Recorrentes
+                    </h4>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <p className="text-purple-700">Total Mensal</p>
+                        <p className="font-bold text-purple-900 text-2xl">
+                          R$ {despesasRecorrentes
+                            .filter(d => d.ativa !== false && d.frequencia === 'mensal')
+                            .reduce((acc, d) => acc + d.valor, 0)
+                            .toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-purple-700">Despesas Ativas</p>
+                        <p className="font-bold text-purple-900 text-2xl">
+                          {despesasRecorrentes.filter(d => d.ativa !== false).length}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-purple-700">Próximas 7 dias</p>
+                        <p className="font-bold text-purple-900 text-2xl">
+                          {despesasRecorrentes.filter(d => {
+                            const dias = Math.ceil((new Date(d.proximaData) - new Date()) / (1000 * 60 * 60 * 24));
+                            return d.ativa !== false && dias >= 0 && dias <= 7;
+                          }).length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const imprimirRecibo = (transacao) => {
     const conta = transacao.contaId ? contas.find(c => c.id === transacao.contaId) : null;
     const cartao = transacao.cartaoId ? cartoes.find(c => c.id === transacao.cartaoId) : null;
@@ -1631,6 +2096,9 @@ const MainApp = ({ user }) => {
             {tipoModal === 'transacao' && 'Nova Transação'}
             {tipoModal === 'conta' && 'Nova Conta'}
             {tipoModal === 'cartao' && 'Novo Cartão'}
+            {tipoModal === 'meta' && 'Nova Meta de Economia'}
+            {tipoModal === 'orcamento' && 'Novo Orçamento'}
+            {tipoModal === 'despesaRecorrente' && 'Nova Despesa Recorrente'}
           </h3>
 
           {tipoModal === 'transacao' && (
@@ -1967,6 +2435,197 @@ const MainApp = ({ user }) => {
             </div>
           )}
 
+          {tipoModal === 'meta' && (
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Nome da meta (ex: Viagem para Europa)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={formData.nome || ''}
+                onChange={(e) => setFormData({...formData, nome: e.target.value})}
+              />
+              <textarea
+                placeholder="Descrição (opcional)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                rows="2"
+                value={formData.descricao || ''}
+                onChange={(e) => setFormData({...formData, descricao: e.target.value})}
+              />
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Valor alvo (R$)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={formData.valorAlvo || ''}
+                onChange={(e) => setFormData({...formData, valorAlvo: e.target.value})}
+              />
+              <input
+                type="date"
+                placeholder="Prazo"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={formData.prazo || ''}
+                onChange={(e) => setFormData({...formData, prazo: e.target.value})}
+              />
+              <select
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={formData.categoria || ''}
+                onChange={(e) => setFormData({...formData, categoria: e.target.value})}
+              >
+                <option value="">Categoria (opcional)</option>
+                <option value="Viagem">Viagem</option>
+                <option value="Casa Própria">Casa Própria</option>
+                <option value="Carro">Carro</option>
+                <option value="Emergência">Emergência</option>
+                <option value="Investimento">Investimento</option>
+                <option value="Educação">Educação</option>
+                <option value="Outro">Outro</option>
+              </select>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tags relacionadas (opcional)</label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    placeholder="Adicionar tag (pressione Enter)"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const tagInput = e.target.value.trim();
+                        if (tagInput && (!formData.tags || !formData.tags.includes(tagInput))) {
+                          setFormData({
+                            ...formData,
+                            tags: [...(formData.tags || []), tagInput]
+                          });
+                          e.target.value = '';
+                        }
+                      }
+                    }}
+                  />
+                </div>
+                {formData.tags && formData.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {formData.tags.map((tag, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
+                      >
+                        <Tag size={12} />
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newTags = formData.tags.filter((_, i) => i !== index);
+                            setFormData({...formData, tags: newTags});
+                          }}
+                          className="ml-1 hover:text-blue-900"
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {tipoModal === 'orcamento' && (
+            <div className="space-y-4">
+              <select
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={formData.categoria || ''}
+                onChange={(e) => setFormData({...formData, categoria: e.target.value})}
+              >
+                <option value="">Selecione a Categoria</option>
+                <option value="Alimentação">Alimentação</option>
+                <option value="Transporte">Transporte</option>
+                <option value="Moradia">Moradia</option>
+                <option value="Saúde">Saúde</option>
+                <option value="Educação">Educação</option>
+                <option value="Lazer">Lazer</option>
+                <option value="Eletrônicos">Eletrônicos</option>
+                <option value="Assinaturas">Assinaturas</option>
+              </select>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Limite mensal (R$)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={formData.limite || ''}
+                onChange={(e) => setFormData({...formData, limite: e.target.value})}
+              />
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-900">
+                  💡 Defina um limite de gastos para esta categoria. Você receberá alertas ao atingir 80% e 100% do orçamento.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {tipoModal === 'despesaRecorrente' && (
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Descrição (ex: Aluguel, Netflix, Academia)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={formData.descricao || ''}
+                onChange={(e) => setFormData({...formData, descricao: e.target.value})}
+              />
+              <select
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={formData.categoria || ''}
+                onChange={(e) => setFormData({...formData, categoria: e.target.value})}
+              >
+                <option value="">Categoria</option>
+                <option value="Moradia">Moradia</option>
+                <option value="Alimentação">Alimentação</option>
+                <option value="Transporte">Transporte</option>
+                <option value="Assinaturas">Assinaturas</option>
+                <option value="Saúde">Saúde</option>
+                <option value="Educação">Educação</option>
+                <option value="Lazer">Lazer</option>
+              </select>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Valor (R$)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={formData.valor || ''}
+                onChange={(e) => setFormData({...formData, valor: e.target.value})}
+              />
+              <select
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={formData.frequencia || ''}
+                onChange={(e) => setFormData({...formData, frequencia: e.target.value})}
+              >
+                <option value="">Frequência</option>
+                <option value="mensal">Mensal</option>
+                <option value="anual">Anual</option>
+                <option value="semanal">Semanal</option>
+              </select>
+              <input
+                type="date"
+                placeholder="Próxima data"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={formData.proximaData || ''}
+                onChange={(e) => setFormData({...formData, proximaData: e.target.value})}
+              />
+              <select
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={formData.contaId || ''}
+                onChange={(e) => setFormData({...formData, contaId: e.target.value ? parseInt(e.target.value) : null})}
+              >
+                <option value="">Conta vinculada (opcional)</option>
+                {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                <p className="text-sm text-purple-900">
+                  ℹ️ As despesas recorrentes servem para lembrar você de pagamentos fixos. Você pode ativá-las/desativá-las quando necessário.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-3 mt-6">
             <button
               onClick={() => setModalAberto(false)}
@@ -2058,6 +2717,74 @@ const MainApp = ({ user }) => {
 
                     await adicionarTransacao(novaTransacao);
                     alert('Transação criada com sucesso!');
+                  }
+                  else if (tipoModal === 'meta') {
+                    // Validar campos obrigatórios
+                    if (!formData.nome || !formData.valorAlvo || !formData.prazo) {
+                      alert('Por favor, preencha todos os campos obrigatórios (Nome, Valor Alvo e Prazo)');
+                      return;
+                    }
+
+                    const novaMeta = {
+                      id: Date.now(),
+                      nome: formData.nome,
+                      descricao: formData.descricao || '',
+                      valorAlvo: parseFloat(formData.valorAlvo),
+                      prazo: formData.prazo,
+                      categoria: formData.categoria || '',
+                      tags: formData.tags || [],
+                      dataCriacao: new Date().toISOString()
+                    };
+
+                    await adicionarMeta(novaMeta);
+                    alert('Meta criada com sucesso!');
+                  }
+                  else if (tipoModal === 'orcamento') {
+                    // Validar campos obrigatórios
+                    if (!formData.categoria || !formData.limite) {
+                      alert('Por favor, preencha todos os campos obrigatórios (Categoria e Limite)');
+                      return;
+                    }
+
+                    // Verificar se já existe orçamento para esta categoria
+                    const orcamentoExistente = orcamentos.find(o => o.categoria === formData.categoria);
+                    if (orcamentoExistente) {
+                      alert('Já existe um orçamento para esta categoria. Exclua o orçamento existente antes de criar um novo.');
+                      return;
+                    }
+
+                    const novoOrcamento = {
+                      id: Date.now(),
+                      categoria: formData.categoria,
+                      limite: parseFloat(formData.limite),
+                      mes: new Date().toISOString().slice(0, 7), // YYYY-MM
+                      dataCriacao: new Date().toISOString()
+                    };
+
+                    await adicionarOrcamento(novoOrcamento);
+                    alert('Orçamento criado com sucesso!');
+                  }
+                  else if (tipoModal === 'despesaRecorrente') {
+                    // Validar campos obrigatórios
+                    if (!formData.descricao || !formData.categoria || !formData.valor || !formData.frequencia || !formData.proximaData) {
+                      alert('Por favor, preencha todos os campos obrigatórios');
+                      return;
+                    }
+
+                    const novaDespesa = {
+                      id: Date.now(),
+                      descricao: formData.descricao,
+                      categoria: formData.categoria,
+                      valor: parseFloat(formData.valor),
+                      frequencia: formData.frequencia,
+                      proximaData: formData.proximaData,
+                      contaId: formData.contaId || null,
+                      ativa: true,
+                      dataCriacao: new Date().toISOString()
+                    };
+
+                    await adicionarDespesaRecorrente(novaDespesa);
+                    alert('Despesa recorrente criada com sucesso!');
                   }
 
                   // Fechar modal e limpar form
@@ -2415,7 +3142,8 @@ const MainApp = ({ user }) => {
               { id: 'conta-corrente', label: 'Conta Corrente', icon: <DollarSign size={18} /> },
               { id: 'faturas', label: 'Faturas', icon: <FileText size={18} /> },
               { id: 'contas', label: 'Contas', icon: <Wallet size={18} /> },
-              { id: 'cartoes', label: 'Cartões', icon: <CreditCard size={18} /> }
+              { id: 'cartoes', label: 'Cartões', icon: <CreditCard size={18} /> },
+              { id: 'planejamento', label: 'Planejamento', icon: <Target size={18} /> }
             ].map(tab => (
               <button
                 key={tab.id}
