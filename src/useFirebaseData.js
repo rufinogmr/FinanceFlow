@@ -39,34 +39,78 @@ export const useFirebaseData = (userId) => {
 
     setCarregando(true);
 
+    // Flags para rastrear se cada observador já retornou dados pela primeira vez
+    const loaded = {
+      contas: false,
+      cartoes: false,
+      transacoes: false,
+      faturas: false,
+      metas: false,
+      orcamentos: false,
+      despesasRecorrentes: false
+    };
+
+    const checkAllLoaded = () => {
+      if (Object.values(loaded).every(v => v === true)) {
+        setCarregando(false);
+      }
+    };
+
     // Observadores em tempo real
     const unsubContas = observarContas(userId, (data) => {
       setContas(data);
+      if (!loaded.contas) {
+        loaded.contas = true;
+        checkAllLoaded();
+      }
     });
 
     const unsubCartoes = observarCartoes(userId, (data) => {
       setCartoes(data);
+      if (!loaded.cartoes) {
+        loaded.cartoes = true;
+        checkAllLoaded();
+      }
     });
 
     const unsubTransacoes = observarTransacoes(userId, (data) => {
       setTransacoes(data);
+      if (!loaded.transacoes) {
+        loaded.transacoes = true;
+        checkAllLoaded();
+      }
     });
 
     const unsubFaturas = observarFaturas(userId, (data) => {
       setFaturas(data);
+      if (!loaded.faturas) {
+        loaded.faturas = true;
+        checkAllLoaded();
+      }
     });
 
     const unsubMetas = observarMetas(userId, (data) => {
       setMetas(data);
+      if (!loaded.metas) {
+        loaded.metas = true;
+        checkAllLoaded();
+      }
     });
 
     const unsubOrcamentos = observarOrcamentos(userId, (data) => {
       setOrcamentos(data);
+      if (!loaded.orcamentos) {
+        loaded.orcamentos = true;
+        checkAllLoaded();
+      }
     });
 
     const unsubDespesasRecorrentes = observarDespesasRecorrentes(userId, (data) => {
       setDespesasRecorrentes(data);
-      setCarregando(false);
+      if (!loaded.despesasRecorrentes) {
+        loaded.despesasRecorrentes = true;
+        checkAllLoaded();
+      }
     });
 
     // Cleanup: cancela observadores ao desmontar
