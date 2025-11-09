@@ -635,6 +635,190 @@ const MainApp = ({ user }) => {
           </div>
         );
       })()}
+
+      {/* Widget de Metas */}
+      {metas.length > 0 && (() => {
+        const metasAtivas = metas.slice(0, 3);
+        const calcularProgressoMeta = (meta) => {
+          const transacoesMeta = transacoes.filter(t =>
+            t.tags && t.tags.some(tag => meta.tags && meta.tags.includes(tag)) &&
+            t.tipo === 'receita' &&
+            t.status === 'confirmado'
+          );
+          const valorAtual = transacoesMeta.reduce((acc, t) => acc + t.valor, 0);
+          return { valorAtual, percentual: (valorAtual / meta.valorAlvo) * 100 };
+        };
+
+        return (
+          <div className="bg-white border border-gray-200 rounded-lg">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Target size={20} className="text-blue-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Metas de Economia</h3>
+                </div>
+                <button
+                  onClick={() => setActiveTab('planejamento')}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Ver todas
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              {metasAtivas.map(meta => {
+                const { valorAtual, percentual } = calcularProgressoMeta(meta);
+                const atingida = percentual >= 100;
+                return (
+                  <div key={meta.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold text-gray-900">{meta.nome}</h4>
+                      {atingida && <CheckCircle size={18} className="text-green-600" />}
+                    </div>
+                    <div className="mb-2">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600">
+                          R$ {valorAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / R$ {meta.valorAlvo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                        <span className={`font-semibold ${atingida ? 'text-green-600' : 'text-blue-600'}`}>
+                          {percentual.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all ${atingida ? 'bg-green-500' : 'bg-blue-500'}`}
+                          style={{ width: `${Math.min(percentual, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Widget de Orçamentos */}
+      {orcamentos.length > 0 && (() => {
+        const mesAtual = new Date().toISOString().slice(0, 7);
+        const gastosPorCategoria = {};
+        transacoes
+          .filter(t =>
+            t.tipo === 'despesa' &&
+            t.data.startsWith(mesAtual) &&
+            (t.status === 'confirmado' || t.status === 'agendado')
+          )
+          .forEach(t => {
+            const valor = t.parcelamento ? t.parcelamento.valorParcela : t.valor;
+            gastosPorCategoria[t.categoria] = (gastosPorCategoria[t.categoria] || 0) + valor;
+          });
+
+        const orcamentosComAlerta = orcamentos.filter(orc => {
+          const gastoAtual = gastosPorCategoria[orc.categoria] || 0;
+          const percentualGasto = (gastoAtual / orc.limite) * 100;
+          return percentualGasto >= 80;
+        }).slice(0, 3);
+
+        if (orcamentosComAlerta.length === 0) return null;
+
+        return (
+          <div className="bg-white border border-orange-200 rounded-lg">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={20} className="text-orange-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Alertas de Orçamento</h3>
+                </div>
+                <button
+                  onClick={() => setActiveTab('planejamento')}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Ver todos
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-3">
+              {orcamentosComAlerta.map(orc => {
+                const gastoAtual = gastosPorCategoria[orc.categoria] || 0;
+                const percentualGasto = (gastoAtual / orc.limite) * 100;
+                const ultrapassou = percentualGasto > 100;
+                return (
+                  <div key={orc.id} className={`p-4 rounded-lg ${ultrapassou ? 'bg-red-50 border border-red-200' : 'bg-orange-50 border border-orange-200'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-gray-900">{orc.categoria}</span>
+                      <span className={`font-bold ${ultrapassou ? 'text-red-600' : 'text-orange-600'}`}>
+                        {percentualGasto.toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-700">
+                      R$ {gastoAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} de R$ {orc.limite.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Widget de Despesas Recorrentes */}
+      {despesasRecorrentes.length > 0 && (() => {
+        const proximasDespesas = despesasRecorrentes
+          .filter(d => {
+            const dias = Math.ceil((new Date(d.proximaData) - new Date()) / (1000 * 60 * 60 * 24));
+            return d.ativa !== false && dias >= 0 && dias <= 7;
+          })
+          .sort((a, b) => new Date(a.proximaData) - new Date(b.proximaData))
+          .slice(0, 3);
+
+        if (proximasDespesas.length === 0) return null;
+
+        return (
+          <div className="bg-white border border-purple-200 rounded-lg">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Repeat size={20} className="text-purple-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Despesas Recorrentes Próximas</h3>
+                </div>
+                <button
+                  onClick={() => setActiveTab('planejamento')}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Ver todas
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-3">
+              {proximasDespesas.map(desp => {
+                const diasRestantes = Math.ceil((new Date(desp.proximaData) - new Date()) / (1000 * 60 * 60 * 24));
+                return (
+                  <div key={desp.id} className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="font-semibold text-gray-900">{desp.descricao}</p>
+                        <p className="text-sm text-gray-600">
+                          {new Date(desp.proximaData).toLocaleDateString('pt-BR')} • {desp.categoria}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900">
+                          R$ {desp.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                        <p className={`text-sm font-medium ${diasRestantes <= 3 ? 'text-orange-600' : 'text-purple-600'}`}>
+                          {diasRestantes} {diasRestantes === 1 ? 'dia' : 'dias'}
+                          {diasRestantes <= 3 && ' ⚠️'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 
@@ -3157,6 +3341,7 @@ const MainApp = ({ user }) => {
         {activeTab === 'faturas' && renderFaturas()}
         {activeTab === 'contas' && renderContas()}
         {activeTab === 'cartoes' && renderCartoes()}
+        {activeTab === 'planejamento' && renderPlanejamento()}
       </div>
 
       {renderModal()}
