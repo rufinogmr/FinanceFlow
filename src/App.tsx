@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Download, Upload, Search, Filter, MoreVertical, ChevronDown, ChevronRight, Eye, EyeOff, FileText, BarChart3, TrendingUp, CreditCard, Wallet, DollarSign, Calendar, AlertCircle, Bell, LogOut, Tag, X } from 'lucide-react';
 import LoginScreen from './LoginScreen';
-import { observarAuth, logout, verificarRedirectLogin } from './firebase';
+import { observarAuth, logout } from './firebase';
 import { useFirebaseData } from './useFirebaseData';
 import { importarArquivo } from './importUtils';
 
@@ -9,18 +9,6 @@ const FinanceApp = () => {
   // Estado de autenticação
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-
-  // Verificar resultado do redirect do Google ao carregar
-  useEffect(() => {
-    const checkRedirect = async () => {
-      try {
-        await verificarRedirectLogin();
-      } catch (error) {
-        console.error('Erro ao verificar redirect:', error);
-      }
-    };
-    checkRedirect();
-  }, []);
 
   // Observar mudanças de autenticação
   useEffect(() => {
