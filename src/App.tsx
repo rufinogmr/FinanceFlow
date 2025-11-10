@@ -99,6 +99,64 @@ const MainApp = ({ user }) => {
   // Estados para faturas
   const [faturaSelecionada, setFaturaSelecionada] = useState(null);
 
+  // ==================== FUNÇÕES DE DESPESAS RECORRENTES ====================
+
+  /**
+   * Efetiva o pagamento de uma despesa recorrente
+   * Cria uma transação automaticamente e atualiza a próxima data
+   */
+  const efetivarPagamentoDespesa = async (despesa) => {
+    try {
+      // Criar transação baseada na despesa recorrente
+      const novaTransacao = {
+        id: Date.now(),
+        descricao: despesa.descricao,
+        valor: despesa.valor,
+        tipo: 'despesa',
+        categoria: despesa.categoria,
+        data: new Date().toISOString().split('T')[0],
+        status: 'confirmado',
+        contaId: despesa.contaId || null,
+        tags: ['despesa-recorrente']
+      };
+
+      await adicionarTransacao(novaTransacao);
+
+      // Calcular próxima data baseado na frequência
+      const dataAtual = new Date(despesa.proximaData);
+      let proximaData;
+
+      switch (despesa.frequencia) {
+        case 'diaria':
+          proximaData = new Date(dataAtual.setDate(dataAtual.getDate() + 1));
+          break;
+        case 'semanal':
+          proximaData = new Date(dataAtual.setDate(dataAtual.getDate() + 7));
+          break;
+        case 'mensal':
+          proximaData = new Date(dataAtual.setMonth(dataAtual.getMonth() + 1));
+          break;
+        case 'anual':
+          proximaData = new Date(dataAtual.setFullYear(dataAtual.getFullYear() + 1));
+          break;
+        default:
+          proximaData = new Date(dataAtual.setMonth(dataAtual.getMonth() + 1));
+      }
+
+      // Atualizar despesa recorrente com nova data
+      await atualizarDespesaRecorrente({
+        ...despesa,
+        proximaData: proximaData.toISOString().split('T')[0]
+      });
+
+      alert(`Pagamento de "${despesa.descricao}" efetuado com sucesso!\nPróxima cobrança: ${proximaData.toLocaleDateString('pt-BR')}`);
+
+    } catch (error) {
+      console.error('Erro ao efetivar pagamento:', error);
+      alert('Erro ao efetivar pagamento. Tente novamente.');
+    }
+  };
+
   // ==================== FUNÇÕES UTILITÁRIAS DE CICLO DE FATURA ====================
 
   /**
@@ -795,7 +853,7 @@ const MainApp = ({ user }) => {
                 const diasRestantes = Math.ceil((new Date(desp.proximaData) - new Date()) / (1000 * 60 * 60 * 24));
                 return (
                   <div key={desp.id} className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-3">
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900">{desp.descricao}</p>
                         <p className="text-sm text-gray-600">
@@ -812,6 +870,17 @@ const MainApp = ({ user }) => {
                         </p>
                       </div>
                     </div>
+                    <button
+                      onClick={async () => {
+                        if (window.confirm(`Confirma o pagamento de "${desp.descricao}"?\n\nValor: R$ ${desp.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\nUma transação será criada automaticamente.`)) {
+                          await efetivarPagamentoDespesa(desp);
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 text-sm font-medium transition-colors"
+                    >
+                      <CheckCircle size={16} />
+                      Pagar Agora
+                    </button>
                   </div>
                 );
               })}
@@ -2158,6 +2227,23 @@ const MainApp = ({ user }) => {
                               {contas.find(c => c.id === desp.contaId)?.nome || 'N/A'}
                             </span>
                           </p>
+                        </div>
+                      )}
+
+                      {/* Botão de pagamento rápido */}
+                      {ativa && diasAteProxima <= 7 && diasAteProxima >= 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <button
+                            onClick={async () => {
+                              if (window.confirm(`Confirma o pagamento de "${desp.descricao}"?\n\nValor: R$ ${desp.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\nUma transação será criada automaticamente e a próxima data será atualizada.`)) {
+                                await efetivarPagamentoDespesa(desp);
+                              }
+                            }}
+                            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 text-sm font-medium transition-colors"
+                          >
+                            <CheckCircle size={16} />
+                            Pagar Agora
+                          </button>
                         </div>
                       )}
                     </div>
