@@ -1121,6 +1121,9 @@ const MainApp = ({ user }) => {
       return passaTipo && passaTags;
     });
 
+    console.log('Transações filtradas:', transacoesFiltradas.length);
+    console.log('Detalhes das filtradas:', transacoesFiltradas);
+
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
