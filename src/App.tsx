@@ -64,6 +64,7 @@ const MainApp = ({ user }) => {
     atualizarCartao,
     adicionarTransacao,
     atualizarTransacao,
+    adicionarFatura,
     atualizarFatura,
     adicionarMeta,
     atualizarMeta,
@@ -918,7 +919,7 @@ const MainApp = ({ user }) => {
       </div>
 
       {contas.map(conta => {
-        const cartaosDaConta = cartoes.filter(c => conta.cartoesVinculados.includes(c.id));
+        const cartaosDaConta = cartoes.filter(c => conta.cartoesVinculados && conta.cartoesVinculados.includes(c.id));
         
         return (
           <div key={conta.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
