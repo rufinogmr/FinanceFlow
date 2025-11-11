@@ -32,14 +32,17 @@ const LoginScreen = ({ onLoginSuccess }) => {
     setErro('');
     try {
       console.log('Iniciando login com Google...');
-      await loginComGoogle();
-      // Usuário será redirecionado para autenticação do Google
-      // Após retornar, o App.tsx verificará o resultado automaticamente
+      const user = await loginComGoogle();
+      console.log('Login bem-sucedido:', user);
+      onLoginSuccess(user);
     } catch (error) {
       console.error('Erro ao fazer login com Google:', error);
 
+      // Tratamento específico de erros do popup
       if (error.code === 'auth/popup-closed-by-user') {
         setErro('❌ Login cancelado pelo usuário.');
+      } else if (error.code === 'auth/popup-blocked') {
+        setErro('❌ Popup bloqueado pelo navegador. Permita popups para este site.');
       } else if (error.code === 'auth/network-request-failed') {
         setErro('❌ Erro de conexão. Verifique sua internet.');
       } else if (error.code === 'auth/unauthorized-domain') {

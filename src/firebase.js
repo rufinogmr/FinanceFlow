@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, query, where, orderBy, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 // 🔥 CONFIGURAÇÃO DO FIREBASE
@@ -28,21 +28,10 @@ const googleProvider = new GoogleAuthProvider();
 // 🔐 FUNÇÕES DE AUTENTICAÇÃO
 export const loginComGoogle = async () => {
   try {
-    await signInWithRedirect(auth, googleProvider);
-    // O resultado será capturado após o redirect usando getRedirectResult
+    const result = await signInWithPopup(auth, googleProvider);
+    return result.user;
   } catch (error) {
     console.error("Erro ao fazer login com Google:", error);
-    throw error;
-  }
-};
-
-// Função para capturar o resultado do redirect após login com Google
-export const verificarRedirectLogin = async () => {
-  try {
-    const result = await getRedirectResult(auth);
-    return result?.user || null;
-  } catch (error) {
-    console.error("Erro ao verificar redirect:", error);
     throw error;
   }
 };
