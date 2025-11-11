@@ -1220,7 +1220,10 @@ const MainApp = ({ user }) => {
   const renderCartoes = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Cartões de Crédito</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Cartões de Crédito</h2>
+          <p className="text-sm text-gray-600 mt-1">Gerencie seus cartões e faturas</p>
+        </div>
         <button
           onClick={() => {
             setTipoModal('cartao');
@@ -1234,90 +1237,219 @@ const MainApp = ({ user }) => {
         </button>
       </div>
 
-      {cartoes.map(cartao => {
-        const faturaAtual = faturas.find(f => f.cartaoId === cartao.id && !f.pago);
-        const valorFatura = faturaAtual?.valorTotal || 0;
-        const percentualUsado = (valorFatura / cartao.limite) * 100;
+      {cartoes.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
+          <CreditCard size={48} className="mx-auto text-gray-300 mb-4" />
+          <p className="text-gray-500">Nenhum cartão cadastrado</p>
+        </div>
+      ) : (
+        cartoes.map(cartao => {
+          const faturaAtual = faturas.find(f => f.cartaoId === cartao.id && !f.pago);
+          const valorFatura = faturaAtual?.valorTotal || 0;
+          const percentualUsado = (valorFatura / cartao.limite) * 100;
 
-        return (
-          <div key={cartao.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-6 text-white">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <p className="text-sm opacity-75 mb-1">{cartao.bandeira}</p>
-                  <p className="font-mono text-lg">{cartao.numero}</p>
-                </div>
-                <CreditCard size={32} className="opacity-75" />
-              </div>
-              <p className="text-lg font-semibold">{cartao.nome}</p>
-            </div>
+          // Obter todas as faturas do cartão, ordenadas por data de vencimento
+          const faturasDoCartao = faturas
+            .filter(f => f.cartaoId === cartao.id)
+            .sort((a, b) => new Date(b.dataVencimento) - new Date(a.dataVencimento));
 
-            <div className="p-6">
-              <div className="mb-4">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-600">Fatura Atual</span>
-                  <span className="font-medium">
-                    R$ {valorFatura.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / 
-                    R$ {cartao.limite.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </span>
+          // Agrupar por status
+          const faturasAbertas = faturasDoCartao.filter(f => calcularStatusFatura(f) === 'aberta');
+          const faturasFechadas = faturasDoCartao.filter(f => calcularStatusFatura(f) === 'fechada');
+          const faturasVencidas = faturasDoCartao.filter(f => calcularStatusFatura(f) === 'vencida');
+          const faturasPagas = faturasDoCartao.filter(f => calcularStatusFatura(f) === 'paga');
+
+          return (
+            <div key={cartao.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-6 text-white">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <p className="text-sm opacity-75 mb-1">{cartao.bandeira}</p>
+                    <p className="font-mono text-lg">{cartao.numero}</p>
+                  </div>
+                  <CreditCard size={32} className="opacity-75" />
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all ${
-                      percentualUsado > 80 ? 'bg-red-500' : 
-                      percentualUsado > 50 ? 'bg-yellow-500' : 
-                      'bg-green-500'
-                    }`}
-                    style={{ width: `${Math.min(percentualUsado, 100)}%` }}
-                  />
-                </div>
+                <p className="text-lg font-semibold">{cartao.nome}</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-500">Fechamento</p>
-                  <p className="font-medium">Dia {cartao.diaFechamento}</p>
+              <div className="p-6">
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-gray-600">Fatura Atual</span>
+                    <span className="font-medium">
+                      R$ {valorFatura.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} /
+                      R$ {cartao.limite.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${
+                        percentualUsado > 80 ? 'bg-red-500' :
+                        percentualUsado > 50 ? 'bg-yellow-500' :
+                        'bg-green-500'
+                      }`}
+                      style={{ width: `${Math.min(percentualUsado, 100)}%` }}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <p className="text-gray-500">Vencimento</p>
-                  <p className="font-medium">Dia {cartao.diaVencimento}</p>
+
+                <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                  <div>
+                    <p className="text-gray-500">Fechamento</p>
+                    <p className="font-medium">Dia {cartao.diaFechamento}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Vencimento</p>
+                    <p className="font-medium">Dia {cartao.diaVencimento}</p>
+                  </div>
                 </div>
-              </div>
 
-              <button
-                onClick={() => setExpandedCard(expandedCard === cartao.id ? null : cartao.id)}
-                className="w-full mt-4 py-2 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-1"
-              >
-                {expandedCard === cartao.id ? 'Ocultar' : 'Ver'} detalhes da fatura
-                {expandedCard === cartao.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-              </button>
+                <button
+                  onClick={() => setExpandedCard(expandedCard === cartao.id ? null : cartao.id)}
+                  className="w-full py-2 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-1"
+                >
+                  {expandedCard === cartao.id ? 'Ocultar' : 'Ver'} faturas
+                  {expandedCard === cartao.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </button>
 
-              {expandedCard === cartao.id && (
-                <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
-                  {transacoes
-                    .filter(t => t.cartaoId === cartao.id)
-                    .map(t => (
-                      <div key={t.id} className="flex justify-between text-sm">
-                        <div>
-                          <p className="font-medium text-gray-900">{t.descricao}</p>
-                          <p className="text-gray-500 text-xs">
-                            {new Date(t.data).toLocaleDateString('pt-BR')}
-                            {t.parcelamento && ` • ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
-                          </p>
+                {expandedCard === cartao.id && (
+                  <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
+                    <h4 className="font-semibold text-gray-900">Faturas do Cartão</h4>
+
+                    {/* Faturas Vencidas */}
+                    {faturasVencidas.length > 0 && (
+                      <div>
+                        <h5 className="text-sm font-medium text-red-600 mb-2 flex items-center gap-2">
+                          <AlertCircle size={16} />
+                          Vencidas ({faturasVencidas.length})
+                        </h5>
+                        <div className="space-y-2">
+                          {faturasVencidas.map(fatura => renderFaturaCard(fatura, cartao))}
                         </div>
-                        <p className="font-medium text-gray-900">
-                          R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
                       </div>
-                    ))}
-                </div>
+                    )}
+
+                    {/* Faturas Fechadas */}
+                    {faturasFechadas.length > 0 && (
+                      <div>
+                        <h5 className="text-sm font-medium text-orange-600 mb-2 flex items-center gap-2">
+                          <FileText size={16} />
+                          Fechadas ({faturasFechadas.length})
+                        </h5>
+                        <div className="space-y-2">
+                          {faturasFechadas.map(fatura => renderFaturaCard(fatura, cartao))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Faturas Abertas */}
+                    {faturasAbertas.length > 0 && (
+                      <div>
+                        <h5 className="text-sm font-medium text-blue-600 mb-2 flex items-center gap-2">
+                          <FileText size={16} />
+                          Abertas ({faturasAbertas.length})
+                        </h5>
+                        <div className="space-y-2">
+                          {faturasAbertas.map(fatura => renderFaturaCard(fatura, cartao))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Faturas Pagas */}
+                    {faturasPagas.length > 0 && (
+                      <div>
+                        <h5 className="text-sm font-medium text-green-600 mb-2 flex items-center gap-2">
+                          <CheckCircle size={16} />
+                          Pagas ({faturasPagas.length})
+                        </h5>
+                        <div className="space-y-2">
+                          {faturasPagas.slice(0, 3).map(fatura => renderFaturaCard(fatura, cartao))}
+                          {faturasPagas.length > 3 && (
+                            <p className="text-xs text-gray-500 italic">E mais {faturasPagas.length - 3} fatura(s) paga(s)...</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {faturasDoCartao.length === 0 && (
+                      <p className="text-sm text-gray-500 italic text-center py-4">Nenhuma fatura gerada para este cartão</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+
+  // Função auxiliar para renderizar card de fatura
+  const renderFaturaCard = (fatura, cartao) => {
+    const status = calcularStatusFatura(fatura);
+    const diasRestantes = Math.ceil((new Date(fatura.dataVencimento) - new Date()) / (1000 * 60 * 60 * 24));
+
+    // Buscar transações da fatura
+    const periodo = calcularPeriodoFatura(cartao, new Date(fatura.dataVencimento));
+    const transacoesFatura = periodo ? transacoes.filter(t => {
+      if (t.cartaoId !== fatura.cartaoId) return false;
+      if (t.categoria === 'Fatura Cartão') return false;
+      const dataT = t.data;
+      return dataT >= periodo.dataInicio && dataT <= periodo.dataFim;
+    }) : [];
+
+    const statusConfig = {
+      vencida: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-600', badge: 'bg-red-100 text-red-700' },
+      fechada: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-600', badge: 'bg-orange-100 text-orange-700' },
+      aberta: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600', badge: 'bg-blue-100 text-blue-700' },
+      paga: { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-600', badge: 'bg-green-100 text-green-700' }
+    };
+
+    const config = statusConfig[status];
+
+    return (
+      <div key={fatura.id} className={`border ${config.border} rounded-lg p-3 ${config.bg}`}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${config.badge}`}>
+                {status.toUpperCase()}
+              </span>
+              <span className="text-xs text-gray-600">
+                {periodo ? `${new Date(periodo.dataInicio).toLocaleDateString('pt-BR')} - ${new Date(periodo.dataFim).toLocaleDateString('pt-BR')}` : fatura.mes}
+              </span>
+            </div>
+            <div className="text-xs text-gray-600">
+              <span>Vencimento: {new Date(fatura.dataVencimento).toLocaleDateString('pt-BR')}</span>
+              {status !== 'paga' && status !== 'vencida' && (
+                <span className={`ml-2 ${diasRestantes <= 3 ? 'text-red-600 font-medium' : ''}`}>
+                  ({diasRestantes > 0 ? `${diasRestantes} dias` : 'Hoje'})
+                </span>
               )}
             </div>
           </div>
-        );
-      })}
-    </div>
-  );
+          <div className="text-right">
+            <p className={`font-bold text-lg ${config.text}`}>
+              R$ {fatura.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </p>
+            {status !== 'paga' && (
+              <button
+                onClick={() => setModalPagamento(fatura)}
+                className="mt-1 px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
+              >
+                Pagar
+              </button>
+            )}
+          </div>
+        </div>
+        {transacoesFatura.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-gray-200">
+            <p className="text-xs text-gray-600 mb-1">{transacoesFatura.length} transação(ões)</p>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Funções para seleção múltipla de transações
   const toggleSelecaoTransacao = (transacaoId) => {
@@ -1383,12 +1515,106 @@ const MainApp = ({ user }) => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Conta Corrente</h2>
-            <p className="text-sm text-gray-600 mt-1">Transações diretas em contas bancárias e pagamentos de faturas</p>
+            <p className="text-sm text-gray-600 mt-1">Gerencie suas contas bancárias e transações</p>
           </div>
-          <div className="flex gap-2">
-            <select
-              value={filtroTransacoes}
-              onChange={(e) => setFiltroTransacoes(e.target.value)}
+        </div>
+
+        {/* Seção de Contas Bancárias */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Contas Bancárias</h3>
+            <button
+              onClick={() => {
+                setTipoModal('conta');
+                setFormData({});
+                setModalAberto(true);
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
+            >
+              <Plus size={16} />
+              Nova Conta
+            </button>
+          </div>
+
+          {contas.length === 0 ? (
+            <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
+              <Wallet size={48} className="mx-auto text-gray-300 mb-4" />
+              <p className="text-gray-500">Nenhuma conta cadastrada</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {contas.map(conta => {
+                const cartaosDaConta = cartoes.filter(c => conta.cartoesVinculados && conta.cartoesVinculados.includes(c.id));
+
+                return (
+                  <div key={conta.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900">{conta.nome}</h3>
+                          <p className="text-sm text-gray-500 mt-1">{conta.banco}</p>
+                        </div>
+                        <button className="text-gray-400 hover:text-gray-600">
+                          <MoreVertical size={20} />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4 mb-4">
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Agência</p>
+                          <p className="font-mono text-sm font-medium">{conta.agencia}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Conta</p>
+                          <p className="font-mono text-sm font-medium">{conta.numero}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Tipo</p>
+                          <p className="text-sm font-medium capitalize">{conta.tipo}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                        <span className="text-sm text-gray-500">Saldo Disponível</span>
+                        <div className="flex items-center gap-2">
+                          {mostrarSaldos ? (
+                            <p className="text-2xl font-bold text-gray-900">
+                              R$ {conta.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                          ) : (
+                            <p className="text-2xl font-bold text-gray-400">••••••</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {cartaosDaConta.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <p className="text-xs text-gray-500 mb-2">Cartões Vinculados</p>
+                          <div className="flex flex-wrap gap-2">
+                            {cartaosDaConta.map(c => (
+                              <span key={c.id} className="px-3 py-1 bg-gray-100 text-gray-700 text-xs rounded-full font-medium">
+                                {c.nome}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Seção de Transações */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Transações</h3>
+            <div className="flex gap-2">
+              <select
+                value={filtroTransacoes}
+                onChange={(e) => setFiltroTransacoes(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
             >
               <option value="todos">Todas</option>
@@ -1591,6 +1817,7 @@ const MainApp = ({ user }) => {
               ))
             )}
           </div>
+        </div>
         </div>
       </div>
     );
@@ -3402,9 +3629,7 @@ const MainApp = ({ user }) => {
             {[
               { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={18} /> },
               { id: 'conta-corrente', label: 'Conta Corrente', icon: <DollarSign size={18} /> },
-              { id: 'faturas', label: 'Faturas', icon: <FileText size={18} /> },
-              { id: 'contas', label: 'Contas', icon: <Wallet size={18} /> },
-              { id: 'cartoes', label: 'Cartões', icon: <CreditCard size={18} /> },
+              { id: 'cartoes', label: 'Cartões de Crédito', icon: <CreditCard size={18} /> },
               { id: 'planejamento', label: 'Planejamento', icon: <Target size={18} /> }
             ].map(tab => (
               <button
@@ -3428,8 +3653,6 @@ const MainApp = ({ user }) => {
       <div className="max-w-7xl mx-auto px-6 py-8">
         {activeTab === 'dashboard' && renderDashboard()}
         {activeTab === 'conta-corrente' && renderContaCorrente()}
-        {activeTab === 'faturas' && renderFaturas()}
-        {activeTab === 'contas' && renderContas()}
         {activeTab === 'cartoes' && renderCartoes()}
         {activeTab === 'planejamento' && renderPlanejamento()}
       </div>
