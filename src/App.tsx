@@ -3241,16 +3241,19 @@ const MainApp = ({ user }) => {
           {/* Seleção de arquivo */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Selecione um arquivo OFX ou CSV
+              Selecione um arquivo OFX, CSV ou XLSX
             </label>
             <input
               type="file"
-              accept=".ofx,.csv"
+              accept=".ofx,.csv,.xlsx,.xls"
               onChange={(e) => setArquivoImportacao(e.target.files[0])}
               className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none"
             />
             <p className="mt-2 text-sm text-gray-500">
-              Formatos aceitos: .OFX (extratos bancários) e .CSV (planilhas)
+              Formatos aceitos: .OFX (extratos bancários), .CSV (planilhas) e .XLSX/.XLS (Excel)
+            </p>
+            <p className="mt-2 text-sm text-blue-600 font-medium">
+              Para XLSX: Colunas esperadas - Data, Estabelecimento, Descrição, Categoria, Conta, Valor
             </p>
           </div>
 
