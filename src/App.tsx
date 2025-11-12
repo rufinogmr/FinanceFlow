@@ -488,7 +488,13 @@ const MainApp = ({ user }) => {
           </div>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div
+          className="bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => {
+            setActiveTab('transacoes');
+            setFiltroTransacoes('receitas');
+          }}
+        >
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-500 font-medium">Receitas do Mês</span>
             <TrendingUp size={18} className="text-green-500" />
@@ -498,7 +504,13 @@ const MainApp = ({ user }) => {
           </p>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div
+          className="bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => {
+            setActiveTab('transacoes');
+            setFiltroTransacoes('despesas');
+          }}
+        >
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-500 font-medium">Despesas do Mês</span>
             <TrendingUp size={18} className="text-red-500 rotate-180" />
