@@ -1001,7 +1001,7 @@ const MainApp = ({ user }) => {
       const diasRestantes = Math.ceil((new Date(fatura.dataVencimento) - new Date()) / (1000 * 60 * 60 * 24));
 
       // Buscar transações da fatura
-      const periodo = cartao ? calcularPeriodoFatura(cartao, new Date(fatura.dataVencimento)) : null;
+      const periodo = cartao ? calcularPeriodoFatura(cartao, new Date(fatura.dataFechamento)) : null;
       const transacoesFatura = periodo ? transacoes.filter(t => {
         if (t.cartaoId !== fatura.cartaoId) return false;
         if (t.categoria === 'Fatura Cartão') return false;
