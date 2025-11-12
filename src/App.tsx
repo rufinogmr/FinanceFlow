@@ -1292,26 +1292,46 @@ const MainApp = ({ user }) => {
                 {expandedCard === cartao.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
               </button>
 
-              {expandedCard === cartao.id && (
-                <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
-                  {transacoes
-                    .filter(t => t.cartaoId === cartao.id)
-                    .map(t => (
-                      <div key={t.id} className="flex justify-between text-sm">
-                        <div>
-                          <p className="font-medium text-gray-900">{t.descricao}</p>
-                          <p className="text-gray-500 text-xs">
-                            {new Date(t.data).toLocaleDateString('pt-BR')}
-                            {t.parcelamento && ` • ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
-                          </p>
-                        </div>
-                        <p className="font-medium text-gray-900">
-                          R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
+              {expandedCard === cartao.id && (() => {
+                // Calcular período da fatura atual
+                const periodo = faturaAtual ? calcularPeriodoFatura(cartao, new Date(faturaAtual.dataFechamento)) : calcularPeriodoFatura(cartao);
+
+                // Filtrar transações do período da fatura
+                const transacoesFatura = transacoes.filter(t => {
+                  if (t.cartaoId !== cartao.id) return false;
+                  if (t.categoria === 'Fatura Cartão') return false;
+                  const dataT = t.data;
+                  return dataT >= periodo.dataInicio && dataT <= periodo.dataFim;
+                });
+
+                return (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <p className="text-xs text-gray-500 mb-3">
+                      Período: {new Date(periodo.dataInicio).toLocaleDateString('pt-BR')} - {new Date(periodo.dataFim).toLocaleDateString('pt-BR')}
+                    </p>
+                    {transacoesFatura.length === 0 ? (
+                      <p className="text-sm text-gray-500 italic">Nenhuma transação nesta fatura</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {transacoesFatura.map(t => (
+                          <div key={t.id} className="flex justify-between text-sm">
+                            <div>
+                              <p className="font-medium text-gray-900">{t.descricao}</p>
+                              <p className="text-gray-500 text-xs">
+                                {new Date(t.data).toLocaleDateString('pt-BR')}
+                                {t.parcelamento && ` • ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
+                              </p>
+                            </div>
+                            <p className="font-medium text-gray-900">
+                              R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                </div>
-              )}
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         );
