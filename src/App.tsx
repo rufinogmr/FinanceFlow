@@ -398,16 +398,40 @@ const MainApp = ({ user }) => {
     }
 
     try {
+      let transacoesComConta = 0;
+      let transacoesSemConta = 0;
+
       for (const transacao of transacoesImportadas) {
+        let contaId = null;
+
+        if (transacao.conta) {
+          const contaEncontrada = contas.find(c => c.nome.toLowerCase() === transacao.conta.toLowerCase());
+          if (contaEncontrada) {
+            contaId = contaEncontrada.id;
+          } else {
+            transacoesSemConta++;
+            continue; // Pula para a próxima transação se a conta não for encontrada
+          }
+        }
+
         const novaTransacao = {
           ...transacao,
           id: Date.now() + Math.random(), // Ensure unique ID
+          contaId: contaId,
         };
+        delete novaTransacao.conta; // Remove o campo 'conta' para evitar erro no Firebase
+
         await adicionarTransacao(novaTransacao);
         await atualizarSaldoConta(novaTransacao);
+        transacoesComConta++;
       }
 
-      alert(`${transacoesImportadas.length} transações importadas com sucesso!`);
+      let mensagem = `${transacoesComConta} transações importadas com sucesso!`;
+      if (transacoesSemConta > 0) {
+        mensagem += `\n\n${transacoesSemConta} transações foram ignoradas porque a conta não foi encontrada. Verifique o nome da conta no arquivo importado.`;
+      }
+      alert(mensagem);
+
 
       // Limpar e fechar modal
       setModalImportacao(false);
