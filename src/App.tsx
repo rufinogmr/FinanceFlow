@@ -77,6 +77,23 @@ const MainApp = ({ user }) => {
     removerDespesaRecorrente
   } = useFirebaseData(user.uid);
 
+  const atualizarSaldoConta = async (transacao) => {
+    if (!transacao.contaId) return;
+
+    const conta = contas.find(c => c.id === transacao.contaId);
+    if (!conta) return;
+
+    let novoSaldo;
+    if (transacao.tipo === 'receita') {
+      novoSaldo = conta.saldo + transacao.valor;
+    } else {
+      novoSaldo = conta.saldo - transacao.valor;
+    }
+
+    const contaAtualizada = { ...conta, saldo: novoSaldo };
+    await atualizarConta(contaAtualizada);
+  };
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mostrarSaldos, setMostrarSaldos] = useState(true);
   const [filtroTransacoes, setFiltroTransacoes] = useState('todos');
@@ -122,6 +139,7 @@ const MainApp = ({ user }) => {
       };
 
       await adicionarTransacao(novaTransacao);
+      await atualizarSaldoConta(novaTransacao);
 
       // Calcular próxima data baseado na frequência
       const dataAtual = new Date(despesa.proximaData);
@@ -373,24 +391,32 @@ const MainApp = ({ user }) => {
     }
   };
 
-  const confirmarImportacao = () => {
+  const confirmarImportacao = async () => {
     if (transacoesImportadas.length === 0) {
       alert('Nenhuma transação para importar');
       return;
     }
 
-    const novasTransacoes = transacoesImportadas.map((t, index) => ({
-      ...t,
-      id: transacoes.length + index + 1
-    }));
+    try {
+      for (const transacao of transacoesImportadas) {
+        const novaTransacao = {
+          ...transacao,
+          id: Date.now() + Math.random(), // Ensure unique ID
+        };
+        await adicionarTransacao(novaTransacao);
+        await atualizarSaldoConta(novaTransacao);
+      }
 
-    setTransacoes([...transacoes, ...novasTransacoes]);
-    alert(`${novasTransacoes.length} transações importadas com sucesso!`);
+      alert(`${transacoesImportadas.length} transações importadas com sucesso!`);
 
-    // Limpar e fechar modal
-    setModalImportacao(false);
-    setArquivoImportacao(null);
-    setTransacoesImportadas([]);
+      // Limpar e fechar modal
+      setModalImportacao(false);
+      setArquivoImportacao(null);
+      setTransacoesImportadas([]);
+    } catch (error) {
+      console.error('Erro ao importar transações:', error);
+      alert('Erro ao importar transações. Tente novamente.');
+    }
   };
 
   const cancelarImportacao = () => {
@@ -2998,6 +3024,7 @@ const MainApp = ({ user }) => {
                     }
 
                     await adicionarTransacao(novaTransacao);
+                    await atualizarSaldoConta(novaTransacao);
                     alert('Transação criada com sucesso!');
                   }
                   else if (tipoModal === 'meta') {
