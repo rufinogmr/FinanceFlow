@@ -1585,7 +1585,8 @@ const MainApp = ({ user }) => {
             const expandido = expandedCard === `cartao-${cartao.id}`;
 
             return (
-              <div key={cartao.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div key={cartao.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                {/* Header Estilo Cartão Físico */}
                 <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-6 text-white">
                   <div className="flex justify-between items-start mb-6">
                     <div>
@@ -1597,99 +1598,323 @@ const MainApp = ({ user }) => {
                   <p className="text-lg font-semibold">{cartao.nome}</p>
                 </div>
 
-                <div className="p-6">
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-gray-600">Fatura Atual</span>
-                      <span className="font-medium">
-                        R$ {valorFatura.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} /
-                        R$ {cartao.limite.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full transition-all ${
-                          percentualUsado > 80 ? 'bg-red-500' :
-                          percentualUsado > 50 ? 'bg-yellow-500' :
-                          'bg-green-500'
-                        }`}
-                        style={{ width: `${Math.min(percentualUsado, 100)}%` }}
-                      />
-                    </div>
+                {/* Barra de Limite */}
+                <div className="p-6 bg-gray-50 border-b border-gray-200">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-gray-600">Limite Utilizado</span>
+                    <span className="font-medium">
+                      R$ {valorFatura.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} /
+                      R$ {cartao.limite.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                    <div>
-                      <p className="text-gray-500">Fechamento</p>
-                      <p className="font-medium">Dia {cartao.diaFechamento}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Vencimento</p>
-                      <p className="font-medium">Dia {cartao.diaVencimento}</p>
-                    </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div
+                      className={`h-2.5 rounded-full transition-all ${
+                        percentualUsado > 80 ? 'bg-red-500' :
+                        percentualUsado > 50 ? 'bg-yellow-500' :
+                        'bg-green-500'
+                      }`}
+                      style={{ width: `${Math.min(percentualUsado, 100)}%` }}
+                    />
                   </div>
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Disponível: R$ {(cartao.limite - valorFatura).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span>{percentualUsado.toFixed(1)}% usado</span>
+                  </div>
+                </div>
 
-                  {faturaAtual && (
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-orange-800 font-medium">Fatura Aberta</p>
-                          <p className="text-xs text-orange-600">
-                            Vence: {new Date(faturaAtual.dataVencimento).toLocaleDateString('pt-BR')}
+                <div className="p-6 space-y-4">
+                  {/* ========== FATURA ATUAL - SEMPRE EXPANDIDA ========== */}
+                  <div className="border-2 border-blue-200 rounded-lg bg-blue-50">
+                    <div className="p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-1 h-8 bg-blue-600 rounded-full"></div>
+                        <div className="flex-1">
+                          <h4 className="font-bold text-gray-900 text-lg">Fatura Atual</h4>
+                          <p className="text-sm text-gray-600">
+                            Fecha dia {cartao.diaFechamento} • Vence dia {cartao.diaVencimento}
                           </p>
                         </div>
-                        <button
-                          onClick={() => setModalPagamento(faturaAtual)}
-                          className="px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium"
-                        >
-                          Pagar
-                        </button>
                       </div>
-                    </div>
-                  )}
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => {
-                        setTipoModal('transacao');
-                        setFormData({ cartaoId: cartao.id });
-                        setModalAberto(true);
-                      }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm font-medium"
-                    >
-                      <Plus size={16} />
-                      Nova Compra
-                    </button>
-                    <button
-                      onClick={() => setExpandedCard(expandido ? null : `cartao-${cartao.id}`)}
-                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium flex items-center justify-center gap-1"
-                    >
-                      {expandido ? 'Ocultar' : 'Ver'} compras
-                      {expandido ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    </button>
-                  </div>
-
-                  {expandido && (
-                    <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
-                      {transacoes
-                        .filter(t => t.cartaoId === cartao.id)
-                        .slice(0, 5)
-                        .map(t => (
-                          <div key={t.id} className="flex justify-between text-sm p-2 hover:bg-gray-50 rounded">
+                      {faturaAtual ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
                             <div>
-                              <p className="font-medium text-gray-900">{t.descricao}</p>
-                              <p className="text-gray-500 text-xs">
-                                {new Date(t.data).toLocaleDateString('pt-BR')}
-                                {t.parcelamento && ` • ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
+                              <p className="text-3xl font-bold text-gray-900">
+                                R$ {faturaAtual.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                              <p className="text-sm text-gray-600 mt-1">
+                                Vencimento: {new Date(faturaAtual.dataVencimento).toLocaleDateString('pt-BR')}
+                              </p>
+                              {(() => {
+                                const diasRestantes = Math.ceil((new Date(faturaAtual.dataVencimento) - new Date()) / (1000 * 60 * 60 * 24));
+                                return (
+                                  <p className={`text-sm font-medium mt-1 ${
+                                    diasRestantes <= 3 ? 'text-red-600' :
+                                    diasRestantes <= 7 ? 'text-orange-600' :
+                                    'text-green-600'
+                                  }`}>
+                                    {diasRestantes > 0 ? `Faltam ${diasRestantes} dias` : 'Vence hoje!'}
+                                    {diasRestantes <= 3 && ' ⚠️'}
+                                  </p>
+                                );
+                              })()}
+                            </div>
+                            <button
+                              onClick={() => setModalPagamento(faturaAtual)}
+                              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                            >
+                              <DollarSign size={18} />
+                              Pagar
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2 pt-3 border-t border-blue-200">
+                            <div className="text-center">
+                              <p className="text-xs text-gray-600">Compras</p>
+                              <p className="font-bold text-gray-900">
+                                {transacoes.filter(t => t.cartaoId === cartao.id && t.data >= faturaAtual.dataInicio && t.data <= faturaAtual.dataFim).length}
                               </p>
                             </div>
-                            <p className="font-medium text-gray-900">
-                              R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </p>
+                            <div className="text-center">
+                              <p className="text-xs text-gray-600">Status</p>
+                              <p className="font-bold text-blue-700">
+                                {calcularStatusFatura(faturaAtual).toUpperCase()}
+                              </p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-xs text-gray-600">Fechamento</p>
+                              <p className="font-bold text-gray-900">
+                                {new Date(faturaAtual.dataFechamento).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                              </p>
+                            </div>
                           </div>
-                        ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-4">
+                          <p className="text-gray-500">Nenhuma fatura em aberto</p>
+                          <p className="text-sm text-gray-400 mt-1">R$ 0,00</p>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
+
+                  {/* ========== COMPRAS DESTE MÊS - COLAPSÁVEL ========== */}
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setExpandedCard(expandedCard === `compras-${cartao.id}` ? null : `compras-${cartao.id}`)}
+                      className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        {expandedCard === `compras-${cartao.id}` ? (
+                          <ChevronDown size={20} className="text-gray-600" />
+                        ) : (
+                          <ChevronRight size={20} className="text-gray-600" />
+                        )}
+                        <div className="text-left">
+                          <h4 className="font-semibold text-gray-900">Compras deste Mês</h4>
+                          <p className="text-sm text-gray-500">
+                            {(() => {
+                              const mesAtual = new Date().toISOString().slice(0, 7);
+                              const comprasMes = transacoes.filter(t =>
+                                t.cartaoId === cartao.id &&
+                                t.data.startsWith(mesAtual) &&
+                                t.categoria !== 'Fatura Cartão'
+                              );
+                              const totalMes = comprasMes.reduce((acc, t) => acc + (t.parcelamento ? t.parcelamento.valorParcela : t.valor), 0);
+                              return `${comprasMes.length} compras • R$ ${totalMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+                            })()}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTipoModal('transacao');
+                          setFormData({ cartaoId: cartao.id });
+                          setModalAberto(true);
+                        }}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
+                      >
+                        <Plus size={16} />
+                        Nova Compra
+                      </button>
+                    </button>
+
+                    {expandedCard === `compras-${cartao.id}` && (
+                      <div className="border-t border-gray-200 bg-gray-50">
+                        {(() => {
+                          const mesAtual = new Date().toISOString().slice(0, 7);
+                          const comprasMes = transacoes.filter(t =>
+                            t.cartaoId === cartao.id &&
+                            t.data.startsWith(mesAtual) &&
+                            t.categoria !== 'Fatura Cartão'
+                          ).sort((a, b) => new Date(b.data) - new Date(a.data));
+
+                          if (comprasMes.length === 0) {
+                            return (
+                              <div className="p-8 text-center">
+                                <DollarSign size={40} className="mx-auto text-gray-300 mb-2" />
+                                <p className="text-gray-500">Nenhuma compra este mês</p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
+                              {comprasMes.map(t => (
+                                <div
+                                  key={t.id}
+                                  className="p-4 hover:bg-white transition-colors cursor-pointer"
+                                  onClick={() => setTransacaoSelecionada(t)}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-gray-900">{t.descricao}</p>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs text-gray-500">
+                                          {new Date(t.data).toLocaleDateString('pt-BR')}
+                                        </span>
+                                        <span className="text-gray-300">•</span>
+                                        <span className="text-xs text-gray-500">{t.categoria}</span>
+                                        {t.parcelamento && (
+                                          <>
+                                            <span className="text-gray-300">•</span>
+                                            <span className="text-xs font-medium text-purple-600">
+                                              {t.parcelamento.parcelaAtual}/{t.parcelamento.parcelas}x
+                                            </span>
+                                          </>
+                                        )}
+                                      </div>
+                                      {t.tags && t.tags.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-2">
+                                          {t.tags.map((tag, idx) => (
+                                            <span
+                                              key={idx}
+                                              className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs"
+                                            >
+                                              <Tag size={10} />
+                                              {tag}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="text-right ml-4">
+                                      <p className="font-bold text-gray-900">
+                                        R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      </p>
+                                      {t.parcelamento && (
+                                        <p className="text-xs text-gray-500 mt-1">
+                                          Total: R$ {t.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ========== HISTÓRICO DE FATURAS - COLAPSÁVEL ========== */}
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setExpandedCard(expandedCard === `historico-${cartao.id}` ? null : `historico-${cartao.id}`)}
+                      className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        {expandedCard === `historico-${cartao.id}` ? (
+                          <ChevronDown size={20} className="text-gray-600" />
+                        ) : (
+                          <ChevronRight size={20} className="text-gray-600" />
+                        )}
+                        <div className="text-left">
+                          <h4 className="font-semibold text-gray-900">Histórico de Faturas</h4>
+                          <p className="text-sm text-gray-500">
+                            {faturas.filter(f => f.cartaoId === cartao.id).length} faturas registradas
+                          </p>
+                        </div>
+                      </div>
+                      <FileText size={20} className="text-gray-400" />
+                    </button>
+
+                    {expandedCard === `historico-${cartao.id}` && (
+                      <div className="border-t border-gray-200 bg-gray-50">
+                        {(() => {
+                          const faturasCartao = faturas
+                            .filter(f => f.cartaoId === cartao.id)
+                            .sort((a, b) => new Date(b.dataVencimento) - new Date(a.dataVencimento));
+
+                          if (faturasCartao.length === 0) {
+                            return (
+                              <div className="p-8 text-center">
+                                <FileText size={40} className="mx-auto text-gray-300 mb-2" />
+                                <p className="text-gray-500">Nenhuma fatura registrada</p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
+                              {faturasCartao.map(fatura => {
+                                const status = calcularStatusFatura(fatura);
+                                const statusConfig = {
+                                  vencida: { bg: 'bg-red-50', text: 'text-red-700', badge: 'bg-red-100 text-red-800' },
+                                  fechada: { bg: 'bg-orange-50', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-800' },
+                                  aberta: { bg: 'bg-blue-50', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-800' },
+                                  paga: { bg: 'bg-green-50', text: 'text-green-700', badge: 'bg-green-100 text-green-800' }
+                                };
+                                const config = statusConfig[status];
+
+                                return (
+                                  <div key={fatura.id} className={`p-4 hover:bg-white transition-colors ${config.bg}`}>
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <p className="font-semibold text-gray-900">
+                                            {new Date(fatura.dataVencimento).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                                          </p>
+                                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${config.badge}`}>
+                                            {status}
+                                          </span>
+                                        </div>
+                                        <p className="text-sm text-gray-600">
+                                          Vencimento: {new Date(fatura.dataVencimento).toLocaleDateString('pt-BR')}
+                                        </p>
+                                        {fatura.pago && fatura.dataPagamento && (
+                                          <p className="text-sm text-green-600 mt-1">
+                                            ✓ Pago em {new Date(fatura.dataPagamento).toLocaleDateString('pt-BR')}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <div className="text-right ml-4">
+                                        <p className={`text-xl font-bold ${config.text}`}>
+                                          R$ {fatura.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </p>
+                                        {!fatura.pago && status !== 'paga' && (
+                                          <button
+                                            onClick={() => setModalPagamento(fatura)}
+                                            className="mt-2 px-3 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
+                                          >
+                                            Pagar
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
