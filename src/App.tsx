@@ -94,7 +94,7 @@ const MainApp = ({ user }) => {
     await atualizarConta(contaAtualizada);
   };
 
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('visao-geral');
   const [mostrarSaldos, setMostrarSaldos] = useState(true);
   const [filtroTransacoes, setFiltroTransacoes] = useState('todos');
   const [filtroTags, setFiltroTags] = useState([]);
@@ -515,7 +515,7 @@ const MainApp = ({ user }) => {
     }
   };
 
-  const renderDashboard = () => (
+  const renderVisaoGeral = () => (
     <div className="space-y-6">
       {/* Cards principais */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1419,6 +1419,285 @@ const MainApp = ({ user }) => {
       setModoSelecao(false);
     }
   };
+
+  // ==================== RENDER CONTAS & CARTÕES ====================
+  const renderContasCartoes = () => (
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-900">Contas & Cartões</h2>
+      </div>
+
+      {/* Seção: Contas Bancárias */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <Wallet size={24} className="text-blue-600" />
+            Contas Bancárias
+          </h3>
+          <button
+            onClick={() => {
+              setTipoModal('conta');
+              setFormData({});
+              setModalAberto(true);
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
+          >
+            <Plus size={16} />
+            Nova Conta
+          </button>
+        </div>
+
+        {contas.length === 0 ? (
+          <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
+            <Wallet size={48} className="mx-auto text-gray-300 mb-4" />
+            <p className="text-gray-500">Nenhuma conta cadastrada</p>
+          </div>
+        ) : (
+          contas.map(conta => {
+            const cartaosDaConta = cartoes.filter(c => conta.cartoesVinculados && conta.cartoesVinculados.includes(c.id));
+            const expandido = expandedCard === `conta-${conta.id}`;
+
+            return (
+              <div key={conta.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                <div className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">{conta.nome}</h3>
+                      <p className="text-sm text-gray-500 mt-1">{conta.banco}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setTipoModal('transacao');
+                        setFormData({ contaId: conta.id });
+                        setModalAberto(true);
+                      }}
+                      className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1 text-sm font-medium"
+                    >
+                      <Plus size={14} />
+                      Lançar
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Agência</p>
+                      <p className="font-mono text-sm font-medium">{conta.agencia}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Conta</p>
+                      <p className="font-mono text-sm font-medium">{conta.numero}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Tipo</p>
+                      <p className="text-sm font-medium capitalize">{conta.tipo}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                    <span className="text-sm text-gray-500">Saldo Disponível</span>
+                    <div className="flex items-center gap-2">
+                      {mostrarSaldos ? (
+                        <p className="text-2xl font-bold text-gray-900">
+                          R$ {conta.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                      ) : (
+                        <p className="text-2xl font-bold text-gray-400">••••••</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {cartaosDaConta.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <p className="text-xs text-gray-500 mb-2">Cartões Vinculados</p>
+                      <div className="flex flex-wrap gap-2">
+                        {cartaosDaConta.map(c => (
+                          <span key={c.id} className="px-3 py-1 bg-gray-100 text-gray-700 text-xs rounded-full font-medium">
+                            {c.nome}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setExpandedCard(expandido ? null : `conta-${conta.id}`)}
+                    className="w-full mt-4 py-2 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-1"
+                  >
+                    {expandido ? 'Ocultar' : 'Ver'} transações recentes
+                    {expandido ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+
+                  {expandido && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+                      {transacoes
+                        .filter(t => t.contaId === conta.id)
+                        .slice(0, 5)
+                        .map(t => (
+                          <div key={t.id} className="flex justify-between text-sm p-2 hover:bg-gray-50 rounded">
+                            <div>
+                              <p className="font-medium text-gray-900">{t.descricao}</p>
+                              <p className="text-gray-500 text-xs">{new Date(t.data).toLocaleDateString('pt-BR')}</p>
+                            </div>
+                            <p className={`font-medium ${t.tipo === 'receita' ? 'text-green-600' : 'text-gray-900'}`}>
+                              {t.tipo === 'receita' ? '+' : '-'} R$ {t.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Seção: Cartões de Crédito */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <CreditCard size={24} className="text-purple-600" />
+            Cartões de Crédito
+          </h3>
+          <button
+            onClick={() => {
+              setTipoModal('cartao');
+              setFormData({});
+              setModalAberto(true);
+            }}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm font-medium"
+          >
+            <Plus size={16} />
+            Novo Cartão
+          </button>
+        </div>
+
+        {cartoes.length === 0 ? (
+          <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
+            <CreditCard size={48} className="mx-auto text-gray-300 mb-4" />
+            <p className="text-gray-500">Nenhum cartão cadastrado</p>
+          </div>
+        ) : (
+          cartoes.map(cartao => {
+            const faturaAtual = faturas.find(f => f.cartaoId === cartao.id && !f.pago);
+            const valorFatura = faturaAtual?.valorTotal || 0;
+            const percentualUsado = (valorFatura / cartao.limite) * 100;
+            const expandido = expandedCard === `cartao-${cartao.id}`;
+
+            return (
+              <div key={cartao.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-6 text-white">
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <p className="text-sm opacity-75 mb-1">{cartao.bandeira}</p>
+                      <p className="font-mono text-lg">{cartao.numero}</p>
+                    </div>
+                    <CreditCard size={32} className="opacity-75" />
+                  </div>
+                  <p className="text-lg font-semibold">{cartao.nome}</p>
+                </div>
+
+                <div className="p-6">
+                  <div className="mb-4">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-gray-600">Fatura Atual</span>
+                      <span className="font-medium">
+                        R$ {valorFatura.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} /
+                        R$ {cartao.limite.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full transition-all ${
+                          percentualUsado > 80 ? 'bg-red-500' :
+                          percentualUsado > 50 ? 'bg-yellow-500' :
+                          'bg-green-500'
+                        }`}
+                        style={{ width: `${Math.min(percentualUsado, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                    <div>
+                      <p className="text-gray-500">Fechamento</p>
+                      <p className="font-medium">Dia {cartao.diaFechamento}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Vencimento</p>
+                      <p className="font-medium">Dia {cartao.diaVencimento}</p>
+                    </div>
+                  </div>
+
+                  {faturaAtual && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-orange-800 font-medium">Fatura Aberta</p>
+                          <p className="text-xs text-orange-600">
+                            Vence: {new Date(faturaAtual.dataVencimento).toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setModalPagamento(faturaAtual)}
+                          className="px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium"
+                        >
+                          Pagar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => {
+                        setTipoModal('transacao');
+                        setFormData({ cartaoId: cartao.id });
+                        setModalAberto(true);
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm font-medium"
+                    >
+                      <Plus size={16} />
+                      Nova Compra
+                    </button>
+                    <button
+                      onClick={() => setExpandedCard(expandido ? null : `cartao-${cartao.id}`)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium flex items-center justify-center gap-1"
+                    >
+                      {expandido ? 'Ocultar' : 'Ver'} compras
+                      {expandido ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    </button>
+                  </div>
+
+                  {expandido && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+                      {transacoes
+                        .filter(t => t.cartaoId === cartao.id)
+                        .slice(0, 5)
+                        .map(t => (
+                          <div key={t.id} className="flex justify-between text-sm p-2 hover:bg-gray-50 rounded">
+                            <div>
+                              <p className="font-medium text-gray-900">{t.descricao}</p>
+                              <p className="text-gray-500 text-xs">
+                                {new Date(t.data).toLocaleDateString('pt-BR')}
+                                {t.parcelamento && ` • ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
+                              </p>
+                            </div>
+                            <p className="font-medium text-gray-900">
+                              R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
 
   // ==================== RENDER CONTA CORRENTE ====================
   const renderContaCorrente = () => {
@@ -3474,11 +3753,8 @@ const MainApp = ({ user }) => {
         <div className="max-w-7xl mx-auto px-6">
           <nav className="flex gap-8">
             {[
-              { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={18} /> },
-              { id: 'conta-corrente', label: 'Conta Corrente', icon: <DollarSign size={18} /> },
-              { id: 'faturas', label: 'Faturas', icon: <FileText size={18} /> },
-              { id: 'contas', label: 'Contas', icon: <Wallet size={18} /> },
-              { id: 'cartoes', label: 'Cartões', icon: <CreditCard size={18} /> },
+              { id: 'visao-geral', label: 'Visão Geral', icon: <BarChart3 size={18} /> },
+              { id: 'contas-cartoes', label: 'Contas & Cartões', icon: <Wallet size={18} /> },
               { id: 'planejamento', label: 'Planejamento', icon: <Target size={18} /> }
             ].map(tab => (
               <button
@@ -3500,11 +3776,8 @@ const MainApp = ({ user }) => {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {activeTab === 'dashboard' && renderDashboard()}
-        {activeTab === 'conta-corrente' && renderContaCorrente()}
-        {activeTab === 'faturas' && renderFaturas()}
-        {activeTab === 'contas' && renderContas()}
-        {activeTab === 'cartoes' && renderCartoes()}
+        {activeTab === 'visao-geral' && renderVisaoGeral()}
+        {activeTab === 'contas-cartoes' && renderContasCartoes()}
         {activeTab === 'planejamento' && renderPlanejamento()}
       </div>
 
@@ -3512,6 +3785,19 @@ const MainApp = ({ user }) => {
       {renderModalDetalhesTransacao()}
       {renderModalPagamento()}
       {renderModalImportacao()}
+
+      {/* Botão Flutuante Global */}
+      <button
+        onClick={() => {
+          setTipoModal('transacao');
+          setFormData({});
+          setModalAberto(true);
+        }}
+        className="fixed bottom-8 right-8 w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-full shadow-2xl hover:shadow-3xl hover:scale-110 transition-all flex items-center justify-center z-50 group"
+        title="Nova Transação"
+      >
+        <Plus size={28} className="group-hover:rotate-90 transition-transform" />
+      </button>
     </div>
   );
 };
