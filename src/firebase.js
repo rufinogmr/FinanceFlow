@@ -140,6 +140,15 @@ export const observarCartoes = (userId, callback) => {
   });
 };
 
+export const deletarCartao = async (userId, cartaoId) => {
+  try {
+    await deleteDoc(doc(db, 'users', userId, 'cartoes', cartaoId.toString()));
+  } catch (error) {
+    console.error("Erro ao deletar cartão:", error);
+    throw error;
+  }
+};
+
 // 💸 FUNÇÕES DE DATABASE (TRANSAÇÕES)
 export const salvarTransacao = async (userId, transacao) => {
   try {

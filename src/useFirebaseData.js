@@ -15,6 +15,7 @@ import {
   salvarOrcamento,
   salvarDespesaRecorrente,
   deletarConta,
+  deletarCartao,
   deletarMeta,
   deletarOrcamento,
   deletarDespesaRecorrente
@@ -146,6 +147,10 @@ export const useFirebaseData = (userId) => {
     await salvarCartao(userId, cartao);
   };
 
+  const removerCartao = async (cartaoId) => {
+    await deletarCartao(userId, cartaoId);
+  };
+
   const adicionarTransacao = async (transacao) => {
     await salvarTransacao(userId, transacao);
   };
@@ -212,6 +217,7 @@ export const useFirebaseData = (userId) => {
     removerConta,
     adicionarCartao,
     atualizarCartao,
+    removerCartao,
     adicionarTransacao,
     atualizarTransacao,
     adicionarFatura, // Já estava aqui
