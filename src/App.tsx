@@ -60,6 +60,7 @@ const MainApp = ({ user }) => {
     setDespesasRecorrentes,
     adicionarConta,
     atualizarConta,
+    removerConta,
     adicionarCartao,
     atualizarCartao,
     adicionarTransacao,
@@ -117,6 +118,10 @@ const MainApp = ({ user }) => {
 
   // Estados para faturas
   const [faturaSelecionada, setFaturaSelecionada] = useState(null);
+
+  // Estados para contas
+  const [menuContaAberto, setMenuContaAberto] = useState(null);
+  const [contaSelecionada, setContaSelecionada] = useState(null);
 
   // ==================== FUNÇÕES DE DESPESAS RECORRENTES ====================
 
@@ -323,6 +328,18 @@ const MainApp = ({ user }) => {
       gerarFaturasAutomaticamente();
     }
   }, [dadosCarregando, cartoes.length, transacoes.length]);
+
+  // Fechar menu dropdown ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuContaAberto && !event.target.closest('.relative')) {
+        setMenuContaAberto(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [menuContaAberto]);
 
   // ==================== FIM FUNÇÕES CICLO DE FATURA ====================
 
@@ -943,6 +960,48 @@ const MainApp = ({ user }) => {
     </div>
   );
 
+  // ==================== FUNÇÕES DE CONTAS ====================
+
+  const handleExcluirConta = async (conta) => {
+    // Verificar se há cartões vinculados
+    const cartoesVinculados = cartoes.filter(c =>
+      conta.cartoesVinculados && conta.cartoesVinculados.includes(c.id)
+    );
+
+    // Verificar se há transações vinculadas
+    const transacoesVinculadas = transacoes.filter(t => t.contaId === conta.id);
+
+    let mensagemConfirmacao = `Deseja realmente excluir a conta "${conta.nome}"?\n\n`;
+
+    if (cartoesVinculados.length > 0) {
+      mensagemConfirmacao += `⚠️ ATENÇÃO: Esta conta possui ${cartoesVinculados.length} cartão(ões) vinculado(s).\n`;
+    }
+
+    if (transacoesVinculadas.length > 0) {
+      mensagemConfirmacao += `⚠️ ATENÇÃO: Esta conta possui ${transacoesVinculadas.length} transação(ões) vinculada(s).\n`;
+    }
+
+    mensagemConfirmacao += `\nSaldo atual: R$ ${conta.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\nEsta ação não pode ser desfeita!`;
+
+    if (window.confirm(mensagemConfirmacao)) {
+      try {
+        await removerConta(conta.id);
+        setMenuContaAberto(null);
+        alert('Conta excluída com sucesso!');
+      } catch (error) {
+        console.error('Erro ao excluir conta:', error);
+        alert('Erro ao excluir conta. Tente novamente.');
+      }
+    }
+  };
+
+  const handleEditarConta = (conta) => {
+    setFormData(conta);
+    setTipoModal('conta');
+    setModalAberto(true);
+    setMenuContaAberto(null);
+  };
+
   const renderContas = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -980,9 +1039,42 @@ const MainApp = ({ user }) => {
                   <h3 className="text-xl font-bold text-gray-900">{conta.nome}</h3>
                   <p className="text-sm text-gray-500 mt-1">{conta.banco}</p>
                 </div>
-                <button className="text-gray-400 hover:text-gray-600">
-                  <MoreVertical size={20} />
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setMenuContaAberto(menuContaAberto === conta.id ? null : conta.id)}
+                    className="text-gray-400 hover:text-gray-600 p-1"
+                  >
+                    <MoreVertical size={20} />
+                  </button>
+                  {menuContaAberto === conta.id && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                      <button
+                        onClick={() => handleEditarConta(conta)}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+                      >
+                        <Edit2 size={16} />
+                        Editar Conta
+                      </button>
+                      <button
+                        onClick={() => {
+                          setContaSelecionada(conta);
+                          setMenuContaAberto(null);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+                      >
+                        <FileText size={16} />
+                        Ver Detalhes
+                      </button>
+                      <button
+                        onClick={() => handleExcluirConta(conta)}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 flex items-center gap-2 text-red-600 border-t border-gray-200"
+                      >
+                        <Trash2 size={16} />
+                        Excluir Conta
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-4 mb-4">
@@ -3797,6 +3889,200 @@ const MainApp = ({ user }) => {
     );
   };
 
+  const renderModalDetalhesConta = () => {
+    if (!contaSelecionada) return null;
+
+    // Filtrar transações da conta
+    const transacoesConta = transacoes.filter(t => t.contaId === contaSelecionada.id);
+
+    // Ordenar por data (mais recente primeiro)
+    const transacoesOrdenadas = [...transacoesConta].sort((a, b) =>
+      new Date(b.data) - new Date(a.data)
+    );
+
+    // Calcular estatísticas
+    const totalReceitas = transacoesConta
+      .filter(t => t.tipo === 'receita')
+      .reduce((acc, t) => acc + t.valor, 0);
+
+    const totalDespesas = transacoesConta
+      .filter(t => t.tipo === 'despesa')
+      .reduce((acc, t) => acc + t.valor, 0);
+
+    const saldoMovimentacoes = totalReceitas - totalDespesas;
+
+    // Buscar cartões vinculados
+    const cartoesVinculados = cartoes.filter(c =>
+      contaSelecionada.cartoesVinculados && contaSelecionada.cartoesVinculados.includes(c.id)
+    );
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900">{contaSelecionada.nome}</h3>
+                <p className="text-sm text-gray-500 mt-1">{contaSelecionada.banco}</p>
+              </div>
+              <button
+                onClick={() => setContaSelecionada(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Informações da conta */}
+            <div className="grid grid-cols-3 gap-4 mt-6">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-xs text-gray-500 mb-1">Agência</p>
+                <p className="font-mono text-lg font-medium">{contaSelecionada.agencia}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-xs text-gray-500 mb-1">Conta</p>
+                <p className="font-mono text-lg font-medium">{contaSelecionada.numero}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-xs text-gray-500 mb-1">Tipo</p>
+                <p className="text-lg font-medium capitalize">{contaSelecionada.tipo}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Estatísticas */}
+          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+            <div className="grid grid-cols-4 gap-4">
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Saldo Atual</p>
+                <p className="text-xl font-bold text-gray-900">
+                  R$ {contaSelecionada.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Total Receitas</p>
+                <p className="text-xl font-bold text-green-600">
+                  R$ {totalReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Total Despesas</p>
+                <p className="text-xl font-bold text-red-600">
+                  R$ {totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Movimentações</p>
+                <p className={`text-xl font-bold ${saldoMovimentacoes >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  R$ {saldoMovimentacoes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            </div>
+
+            {cartoesVinculados.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <p className="text-xs text-gray-500 mb-2">Cartões Vinculados ({cartoesVinculados.length})</p>
+                <div className="flex flex-wrap gap-2">
+                  {cartoesVinculados.map(c => (
+                    <span key={c.id} className="px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded-full font-medium">
+                      {c.nome}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Histórico de Transações */}
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-bold text-gray-900">
+                Histórico de Transações ({transacoesConta.length})
+              </h4>
+            </div>
+
+            {transacoesOrdenadas.length === 0 ? (
+              <div className="text-center py-12">
+                <FileText size={48} className="mx-auto text-gray-300 mb-3" />
+                <p className="text-gray-500">Nenhuma transação encontrada nesta conta</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {transacoesOrdenadas.map(transacao => (
+                  <div
+                    key={transacao.id}
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900">{transacao.descricao}</p>
+                        {transacao.tags && transacao.tags.length > 0 && (
+                          <div className="flex gap-1">
+                            {transacao.tags.map((tag, idx) => (
+                              <span key={idx} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1">
+                        <p className="text-sm text-gray-500">
+                          {new Date(transacao.data).toLocaleDateString('pt-BR')}
+                        </p>
+                        <span className="text-gray-300">•</span>
+                        <p className="text-sm text-gray-500">{transacao.categoria}</p>
+                        <span className="text-gray-300">•</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          transacao.status === 'confirmado'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {transacao.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right ml-4">
+                      <p className={`text-lg font-bold ${
+                        transacao.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {transacao.tipo === 'receita' ? '+' : '-'}
+                        R$ {transacao.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-6 border-t border-gray-200 bg-gray-50">
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  handleEditarConta(contaSelecionada);
+                  setContaSelecionada(null);
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
+              >
+                <Edit2 size={16} />
+                Editar Conta
+              </button>
+              <button
+                onClick={() => setContaSelecionada(null)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 font-medium"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderModalImportacao = () => {
     if (!modalImportacao) return null;
 
@@ -4002,6 +4288,7 @@ const MainApp = ({ user }) => {
       {renderModalDetalhesTransacao()}
       {renderModalPagamento()}
       {renderModalImportacao()}
+      {renderModalDetalhesConta()}
 
       {/* Botão Flutuante Global */}
       <button
