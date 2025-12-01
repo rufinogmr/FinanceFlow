@@ -182,6 +182,24 @@ export const observarTransacoes = (userId, callback) => {
   });
 };
 
+export const deletarTransacao = async (userId, transacaoId) => {
+  try {
+    await deleteDoc(doc(db, 'users', userId, 'transacoes', transacaoId.toString()));
+  } catch (error) {
+    console.error("Erro ao deletar transação:", error);
+    throw error;
+  }
+};
+
+export const deletarCartao = async (userId, cartaoId) => {
+  try {
+    await deleteDoc(doc(db, 'users', userId, 'cartoes', cartaoId.toString()));
+  } catch (error) {
+    console.error("Erro ao deletar cartão:", error);
+    throw error;
+  }
+};
+
 // 🧾 FUNÇÕES DE DATABASE (FATURAS)
 export const salvarFatura = async (userId, fatura) => {
   try {
