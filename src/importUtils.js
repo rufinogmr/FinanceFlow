@@ -155,6 +155,27 @@ export const parseOFX = async (conteudo) => {
 };
 
 /**
+ * Detecta o delimitador do CSV
+ */
+const detectarDelimitador = (conteudo) => {
+  const primeiraLinha = conteudo.split('\n')[0];
+  const delimitadores = [',', ';', '\t', '|'];
+
+  let melhorDelimitador = ',';
+  let maiorContagem = 0;
+
+  for (const delim of delimitadores) {
+    const contagem = (primeiraLinha.match(new RegExp('\\' + delim, 'g')) || []).length;
+    if (contagem > maiorContagem) {
+      maiorContagem = contagem;
+      melhorDelimitador = delim;
+    }
+  }
+
+  return melhorDelimitador;
+};
+
+/**
  * Parser para arquivos CSV
  * Formatos aceitos:
  * - Formato FinanceFlow: data,tipo,valor,categoria,descricao
@@ -164,89 +185,158 @@ export const parseOFX = async (conteudo) => {
  */
 export const parseCSV = async (conteudo) => {
   return new Promise((resolve, reject) => {
+    // Detecta o delimitador
+    const delimiter = detectarDelimitador(conteudo);
+    console.log('Delimitador detectado:', delimiter);
+
     Papa.parse(conteudo, {
       header: true,
+      delimiter: delimiter,
       skipEmptyLines: true,
+      dynamicTyping: false,
       complete: (results) => {
         try {
+          console.log('CSV parseado com sucesso');
+          console.log('Total de linhas:', results.data.length);
+          console.log('Colunas detectadas:', results.meta.fields);
+          console.log('Primeira linha (sample):', results.data[0]);
+
           const transacoes = [];
 
-          for (const row of results.data) {
-            // Normaliza nomes das colunas (case-insensitive)
+          for (let i = 0; i < results.data.length; i++) {
+            const row = results.data[i];
+
+            // Normaliza nomes das colunas (case-insensitive, remove espaços e acentos)
             const rowNormalizada = {};
             for (const [key, value] of Object.entries(row)) {
-              rowNormalizada[key.toLowerCase().trim()] = value;
+              if (key && value !== null && value !== undefined) {
+                const keyNormalizada = key
+                  .toLowerCase()
+                  .trim()
+                  .normalize('NFD')
+                  .replace(/[\u0300-\u036f]/g, ''); // Remove acentos
+                rowNormalizada[keyNormalizada] = value.toString().trim();
+              }
             }
 
             let transacao = {};
 
-            // Formato FinanceFlow (exportado pelo próprio sistema)
-            if (rowNormalizada.data && rowNormalizada.tipo && rowNormalizada.valor) {
-              transacao = {
-                data: formatarData(rowNormalizada.data),
-                tipo: rowNormalizada.tipo.toLowerCase() === 'receita' ? 'receita' : 'despesa',
-                valor: Math.abs(parseFloat(rowNormalizada.valor.toString().replace(/[^\d.,]/g, '').replace(',', '.'))),
-                categoria: rowNormalizada.categoria || 'Outros',
-                descricao: rowNormalizada.descricao || rowNormalizada.descrição || 'Importado',
-                status: 'confirmado'
-              };
-            }
-            // Formato genérico de banco (data, descrição, valor)
-            else if (rowNormalizada.data && rowNormalizada.valor) {
-              const valorStr = rowNormalizada.valor.toString().replace(/[^\d.,-]/g, '').replace(',', '.');
-              const valor = parseFloat(valorStr);
-              const descricao = rowNormalizada.descricao ||
-                               rowNormalizada.descrição ||
-                               rowNormalizada.historico ||
-                               rowNormalizada.memo ||
-                               'Importado';
+            // Tenta extrair os campos obrigatórios
+            const camposData = ['data', 'date', 'dt'];
+            const camposValor = ['valor', 'value', 'amount', 'quantia', 'vlr'];
+            const camposDescricao = ['descricao', 'description', 'historico', 'memo', 'desc'];
+            const camposTipo = ['tipo', 'type', 'natureza'];
+            const camposCategoria = ['categoria', 'category', 'cat'];
 
-              transacao = {
-                data: formatarData(rowNormalizada.data),
-                tipo: valor >= 0 ? 'receita' : 'despesa',
-                valor: Math.abs(valor),
-                categoria: mapearCategoria(descricao),
-                descricao,
-                status: 'confirmado'
-              };
-            }
-            // Tenta outros formatos comuns
-            else if ((rowNormalizada.data || rowNormalizada.date) &&
-                     (rowNormalizada.amount || rowNormalizada.value)) {
-              const valorStr = (rowNormalizada.amount || rowNormalizada.value).toString()
-                .replace(/[^\d.,-]/g, '').replace(',', '.');
-              const valor = parseFloat(valorStr);
-              const descricao = rowNormalizada.description ||
-                               rowNormalizada.memo ||
-                               rowNormalizada.descricao ||
-                               'Importado';
+            // Busca os campos no objeto normalizado
+            const dataKey = Object.keys(rowNormalizada).find(k => camposData.includes(k));
+            const valorKey = Object.keys(rowNormalizada).find(k => camposValor.includes(k));
+            const descricaoKey = Object.keys(rowNormalizada).find(k => camposDescricao.includes(k));
+            const tipoKey = Object.keys(rowNormalizada).find(k => camposTipo.includes(k));
+            const categoriaKey = Object.keys(rowNormalizada).find(k => camposCategoria.includes(k));
 
-              transacao = {
-                data: formatarData(rowNormalizada.data || rowNormalizada.date),
-                tipo: valor >= 0 ? 'receita' : 'despesa',
-                valor: Math.abs(valor),
-                categoria: mapearCategoria(descricao),
-                descricao,
-                status: 'confirmado'
-              };
+            // Se não tem nem data nem valor, pula essa linha
+            if (!dataKey && !valorKey) {
+              console.log(`Linha ${i + 1}: Pulando - sem data ou valor`, rowNormalizada);
+              continue;
             }
 
-            // Valida se a transação tem os campos obrigatórios
-            if (transacao.data && transacao.valor && transacao.tipo) {
+            // Extrai os valores
+            const dataValue = dataKey ? rowNormalizada[dataKey] : null;
+            const valorValue = valorKey ? rowNormalizada[valorKey] : null;
+            const descricaoValue = descricaoKey ? rowNormalizada[descricaoKey] : 'Importado';
+            const tipoValue = tipoKey ? rowNormalizada[tipoKey] : null;
+            const categoriaValue = categoriaKey ? rowNormalizada[categoriaKey] : null;
+
+            // Parse do valor
+            let valorNumerico = 0;
+            if (valorValue) {
+              // Remove tudo exceto dígitos, ponto, vírgula e sinal de menos
+              let valorLimpo = valorValue.replace(/[^\d.,-]/g, '');
+
+              // Se tem vírgula e ponto, identifica qual é decimal
+              if (valorLimpo.includes(',') && valorLimpo.includes('.')) {
+                // Formato brasileiro: 1.234,56 -> remove ponto, troca vírgula por ponto
+                if (valorLimpo.lastIndexOf(',') > valorLimpo.lastIndexOf('.')) {
+                  valorLimpo = valorLimpo.replace(/\./g, '').replace(',', '.');
+                }
+                // Formato internacional: 1,234.56 -> remove vírgula
+                else {
+                  valorLimpo = valorLimpo.replace(/,/g, '');
+                }
+              }
+              // Se tem só vírgula, assume que é decimal brasileiro
+              else if (valorLimpo.includes(',')) {
+                valorLimpo = valorLimpo.replace(',', '.');
+              }
+
+              valorNumerico = parseFloat(valorLimpo);
+            }
+
+            // Se conseguiu parsear data e valor
+            if (dataValue && !isNaN(valorNumerico)) {
+              // Determina o tipo (receita ou despesa)
+              let tipo = 'despesa'; // default
+
+              if (tipoValue) {
+                const tipoLower = tipoValue.toLowerCase();
+                if (tipoLower.includes('receita') || tipoLower.includes('credit') ||
+                    tipoLower.includes('entrada') || tipoLower.includes('income')) {
+                  tipo = 'receita';
+                }
+              } else {
+                // Se não tem campo tipo, usa o sinal do valor
+                tipo = valorNumerico >= 0 ? 'receita' : 'despesa';
+              }
+
+              transacao = {
+                data: formatarData(dataValue),
+                tipo: tipo,
+                valor: Math.abs(valorNumerico),
+                categoria: categoriaValue || mapearCategoria(descricaoValue),
+                descricao: descricaoValue,
+                status: 'confirmado'
+              };
+
+              console.log(`Linha ${i + 1}: Transação processada`, transacao);
               transacoes.push(transacao);
+            } else {
+              console.log(`Linha ${i + 1}: Dados inválidos - data: ${dataValue}, valor: ${valorNumerico}`);
             }
           }
 
+          console.log(`Total de transações processadas: ${transacoes.length}`);
+
           if (transacoes.length === 0) {
-            reject(new Error('Nenhuma transação válida encontrada no arquivo CSV. Verifique o formato.'));
+            const msgErro = `Nenhuma transação válida encontrada no arquivo CSV.
+
+Colunas detectadas: ${results.meta.fields.join(', ')}
+
+O arquivo deve conter pelo menos:
+- Uma coluna de DATA (data, date, dt)
+- Uma coluna de VALOR (valor, value, amount)
+
+Opcionalmente:
+- DESCRIÇÃO (descricao, description, historico)
+- TIPO (tipo, type) - receita/despesa
+- CATEGORIA (categoria, category)
+
+Exemplo de formato aceito:
+data,valor,descricao
+2024-01-15,100.50,Supermercado
+2024-01-16,-50.00,Gasolina`;
+
+            reject(new Error(msgErro));
           } else {
             resolve(transacoes);
           }
         } catch (erro) {
+          console.error('Erro ao processar CSV:', erro);
           reject(new Error(`Erro ao processar CSV: ${erro.message}`));
         }
       },
       error: (erro) => {
+        console.error('Erro ao parsear CSV:', erro);
         reject(new Error(`Erro ao parsear CSV: ${erro.message}`));
       }
     });

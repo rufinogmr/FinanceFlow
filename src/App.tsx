@@ -60,8 +60,10 @@ const MainApp = ({ user }) => {
     setDespesasRecorrentes,
     adicionarConta,
     atualizarConta,
+    removerConta,
     adicionarCartao,
     atualizarCartao,
+    removerCartao,
     adicionarTransacao,
     atualizarTransacao,
     adicionarFatura,
@@ -94,11 +96,12 @@ const MainApp = ({ user }) => {
     await atualizarConta(contaAtualizada);
   };
 
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('visao-geral');
   const [mostrarSaldos, setMostrarSaldos] = useState(true);
   const [filtroTransacoes, setFiltroTransacoes] = useState('todos');
   const [filtroTags, setFiltroTags] = useState([]);
   const [expandedCard, setExpandedCard] = useState(null);
+  const [secaoExpandida, setSecaoExpandida] = useState('compras');
 
   const [modalAberto, setModalAberto] = useState(false);
   const [tipoModal, setTipoModal] = useState('');
@@ -117,6 +120,13 @@ const MainApp = ({ user }) => {
 
   // Estados para faturas
   const [faturaSelecionada, setFaturaSelecionada] = useState(null);
+
+  // Estados para contas
+  const [menuContaAberto, setMenuContaAberto] = useState(null);
+  const [contaSelecionada, setContaSelecionada] = useState(null);
+
+  // Estados para cartões
+  const [menuCartaoAberto, setMenuCartaoAberto] = useState(null);
 
   // ==================== FUNÇÕES DE DESPESAS RECORRENTES ====================
 
@@ -324,6 +334,18 @@ const MainApp = ({ user }) => {
     }
   }, [dadosCarregando, cartoes.length, transacoes.length]);
 
+  // Fechar menu dropdown ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuContaAberto && !event.target.closest('.relative')) {
+        setMenuContaAberto(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [menuContaAberto]);
+
   // ==================== FIM FUNÇÕES CICLO DE FATURA ====================
 
   // Cálculos
@@ -516,7 +538,7 @@ const MainApp = ({ user }) => {
     }
   };
 
-  const renderDashboard = () => (
+  const renderVisaoGeral = () => (
     <div className="space-y-6">
       {/* Cards principais */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -539,7 +561,13 @@ const MainApp = ({ user }) => {
           </div>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div
+          className="bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => {
+            setActiveTab('transacoes');
+            setFiltroTransacoes('receitas');
+          }}
+        >
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-500 font-medium">Receitas do Mês</span>
             <TrendingUp size={18} className="text-green-500" />
@@ -549,7 +577,13 @@ const MainApp = ({ user }) => {
           </p>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div
+          className="bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => {
+            setActiveTab('transacoes');
+            setFiltroTransacoes('despesas');
+          }}
+        >
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-500 font-medium">Despesas do Mês</span>
             <TrendingUp size={18} className="text-red-500 rotate-180" />
@@ -943,6 +977,88 @@ const MainApp = ({ user }) => {
     </div>
   );
 
+  // ==================== FUNÇÕES DE CONTAS ====================
+
+  const handleExcluirConta = async (conta) => {
+    // Verificar se há cartões vinculados
+    const cartoesVinculados = cartoes.filter(c =>
+      conta.cartoesVinculados && conta.cartoesVinculados.includes(c.id)
+    );
+
+    // Verificar se há transações vinculadas
+    const transacoesVinculadas = transacoes.filter(t => t.contaId === conta.id);
+
+    let mensagemConfirmacao = `Deseja realmente excluir a conta "${conta.nome}"?\n\n`;
+
+    if (cartoesVinculados.length > 0) {
+      mensagemConfirmacao += `⚠️ ATENÇÃO: Esta conta possui ${cartoesVinculados.length} cartão(ões) vinculado(s).\n`;
+    }
+
+    if (transacoesVinculadas.length > 0) {
+      mensagemConfirmacao += `⚠️ ATENÇÃO: Esta conta possui ${transacoesVinculadas.length} transação(ões) vinculada(s).\n`;
+    }
+
+    mensagemConfirmacao += `\nSaldo atual: R$ ${conta.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\nEsta ação não pode ser desfeita!`;
+
+    if (window.confirm(mensagemConfirmacao)) {
+      try {
+        await removerConta(conta.id);
+        setMenuContaAberto(null);
+        alert('Conta excluída com sucesso!');
+      } catch (error) {
+        console.error('Erro ao excluir conta:', error);
+        alert('Erro ao excluir conta. Tente novamente.');
+      }
+    }
+  };
+
+  const handleEditarConta = (conta) => {
+    setFormData(conta);
+    setTipoModal('conta');
+    setModalAberto(true);
+    setMenuContaAberto(null);
+  };
+
+  // ==================== FUNÇÕES DE CARTÕES ====================
+
+  const handleExcluirCartao = async (cartao) => {
+    // Verificar se há faturas vinculadas
+    const faturasVinculadas = faturas.filter(f => f.cartaoId === cartao.id);
+
+    // Verificar se há transações vinculadas
+    const transacoesVinculadas = transacoes.filter(t => t.cartaoId === cartao.id);
+
+    let mensagemConfirmacao = `Deseja realmente excluir o cartão "${cartao.nome}"?\n\n`;
+
+    if (faturasVinculadas.length > 0) {
+      mensagemConfirmacao += `⚠️ ATENÇÃO: Este cartão possui ${faturasVinculadas.length} fatura(s) vinculada(s).\n`;
+    }
+
+    if (transacoesVinculadas.length > 0) {
+      mensagemConfirmacao += `⚠️ ATENÇÃO: Este cartão possui ${transacoesVinculadas.length} transação(ões) vinculada(s).\n`;
+    }
+
+    mensagemConfirmacao += `\nLimite: R$ ${cartao.limite.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\nEsta ação não pode ser desfeita!`;
+
+    if (window.confirm(mensagemConfirmacao)) {
+      try {
+        await removerCartao(cartao.id);
+        setMenuCartaoAberto(null);
+        alert('Cartão excluído com sucesso!');
+      } catch (error) {
+        console.error('Erro ao excluir cartão:', error);
+        alert('Erro ao excluir cartão. Tente novamente.');
+      }
+    }
+  };
+
+  const handleEditarCartao = (cartao) => {
+    setFormData(cartao);
+    setTipoModal('cartao');
+    setModalAberto(true);
+    setMenuCartaoAberto(null);
+  };
+
   const renderContas = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -980,9 +1096,42 @@ const MainApp = ({ user }) => {
                   <h3 className="text-xl font-bold text-gray-900">{conta.nome}</h3>
                   <p className="text-sm text-gray-500 mt-1">{conta.banco}</p>
                 </div>
-                <button className="text-gray-400 hover:text-gray-600">
-                  <MoreVertical size={20} />
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setMenuContaAberto(menuContaAberto === conta.id ? null : conta.id)}
+                    className="text-gray-400 hover:text-gray-600 p-1"
+                  >
+                    <MoreVertical size={20} />
+                  </button>
+                  {menuContaAberto === conta.id && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                      <button
+                        onClick={() => handleEditarConta(conta)}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+                      >
+                        <Edit2 size={16} />
+                        Editar Conta
+                      </button>
+                      <button
+                        onClick={() => {
+                          setContaSelecionada(conta);
+                          setMenuContaAberto(null);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+                      >
+                        <FileText size={16} />
+                        Ver Detalhes
+                      </button>
+                      <button
+                        onClick={() => handleExcluirConta(conta)}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 flex items-center gap-2 text-red-600 border-t border-gray-200"
+                      >
+                        <Trash2 size={16} />
+                        Excluir Conta
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-4 mb-4">
@@ -1436,6 +1585,557 @@ const MainApp = ({ user }) => {
       setTransacoesSelecionadas([]);
       setModoSelecao(false);
     }
+  };
+
+  // ==================== RENDER CONTAS & CARTÕES ====================
+  const renderContasCartoes = () => {
+    // Obter todas as tags únicas
+    const allTags = [...new Set(transacoes.flatMap(t => t.tags || []))].sort();
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">Contas & Cartões</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setModalImportacao(true)}
+              className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm"
+            >
+              <Upload size={16} />
+              Importar
+            </button>
+            <button
+              onClick={exportarCSV}
+              className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 text-sm"
+            >
+              <Download size={16} />
+              Exportar
+            </button>
+          </div>
+        </div>
+
+        {/* ==================== CONTAS BANCÁRIAS - COMPACTAS ==================== */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Wallet size={20} className="text-blue-600" />
+              Contas Bancárias
+            </h3>
+            <button
+              onClick={() => {
+                setTipoModal('conta');
+                setFormData({});
+                setModalAberto(true);
+              }}
+              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1 text-sm"
+            >
+              <Plus size={14} />
+              Nova
+            </button>
+          </div>
+
+          {contas.length === 0 ? (
+            <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+              <Wallet size={40} className="mx-auto text-gray-400 mb-2" />
+              <p className="text-gray-500 text-sm">Nenhuma conta cadastrada</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {contas.map(conta => (
+                <div key={conta.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900">{conta.nome}</h4>
+                      <p className="text-xs text-gray-500">{conta.banco}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setTipoModal('transacao');
+                          setFormData({ contaId: conta.id });
+                          setModalAberto(true);
+                        }}
+                        className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                      >
+                        + Lançar
+                      </button>
+                      <div className="relative">
+                        <button
+                          onClick={() => setMenuContaAberto(menuContaAberto === conta.id ? null : conta.id)}
+                          className="text-gray-400 hover:text-gray-600 p-1"
+                        >
+                          <MoreVertical size={16} />
+                        </button>
+                        {menuContaAberto === conta.id && (
+                          <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                            <button
+                              onClick={() => handleEditarConta(conta)}
+                              className="w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+                            >
+                              <Edit2 size={14} />
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleExcluirConta(conta)}
+                              className="w-full px-3 py-2 text-left text-xs hover:bg-red-50 flex items-center gap-2 text-red-600 border-t border-gray-200"
+                            >
+                              <Trash2 size={14} />
+                              Excluir
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Saldo</span>
+                    {mostrarSaldos ? (
+                      <p className="text-xl font-bold text-gray-900">
+                        R$ {conta.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                    ) : (
+                      <p className="text-xl font-bold text-gray-400">••••••</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ==================== CARTÕES - COMPACTOS ==================== */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <CreditCard size={20} className="text-purple-600" />
+              Cartões de Crédito
+            </h3>
+            <button
+              onClick={() => {
+                setTipoModal('cartao');
+                setFormData({});
+                setModalAberto(true);
+              }}
+              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-1 text-sm"
+            >
+              <Plus size={14} />
+              Novo
+            </button>
+          </div>
+
+          {cartoes.length === 0 ? (
+            <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+              <CreditCard size={40} className="mx-auto text-gray-400 mb-2" />
+              <p className="text-gray-500 text-sm">Nenhum cartão cadastrado</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {cartoes.map(cartao => {
+                const faturaAtual = faturas.find(f => f.cartaoId === cartao.id && !f.pago);
+                const valorFatura = faturaAtual?.valorTotal || 0;
+                const percentualUsado = (valorFatura / cartao.limite) * 100;
+                const expandido = expandedCard === `cartao-${cartao.id}`;
+
+                return (
+                  <div key={cartao.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                    {/* Header Compacto */}
+                    <div className="bg-gradient-to-r from-gray-800 to-gray-700 p-4 text-white">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-semibold">{cartao.nome}</p>
+                          <p className="text-xs opacity-75">{cartao.bandeira} •••• {cartao.numero.slice(-4)}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setTipoModal('transacao');
+                              setFormData({ cartaoId: cartao.id });
+                              setModalAberto(true);
+                            }}
+                            className="px-3 py-1.5 bg-white text-gray-800 rounded text-xs font-medium hover:bg-gray-100"
+                          >
+                            + Compra
+                          </button>
+                          <div className="relative">
+                            <button
+                              onClick={() => setMenuCartaoAberto(menuCartaoAberto === cartao.id ? null : cartao.id)}
+                              className="text-white hover:text-gray-300 p-1"
+                            >
+                              <MoreVertical size={16} />
+                            </button>
+                            {menuCartaoAberto === cartao.id && (
+                              <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                                <button
+                                  onClick={() => handleEditarCartao(cartao)}
+                                  className="w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+                                >
+                                  <Edit2 size={14} />
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={() => handleExcluirCartao(cartao)}
+                                  className="w-full px-3 py-2 text-left text-xs hover:bg-red-50 flex items-center gap-2 text-red-600 border-t border-gray-200"
+                                >
+                                  <Trash2 size={14} />
+                                  Excluir
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Conteúdo */}
+                    <div className="p-4 space-y-3">
+                      {/* Limite */}
+                      <div>
+                        <div className="flex justify-between text-xs text-gray-600 mb-1">
+                          <span>R$ {valorFatura.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          <span>R$ {cartao.limite.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full transition-all ${
+                              percentualUsado > 80 ? 'bg-red-500' :
+                              percentualUsado > 50 ? 'bg-yellow-500' :
+                              'bg-green-500'
+                            }`}
+                            style={{ width: `${Math.min(percentualUsado, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Fatura Atual */}
+                      {faturaAtual && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="text-xs text-orange-700 font-medium">Fatura Aberta</p>
+                              <p className="text-sm font-bold text-gray-900">
+                                R$ {faturaAtual.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                              <p className="text-xs text-orange-600">
+                                Vence: {new Date(faturaAtual.dataVencimento).toLocaleDateString('pt-BR')}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => setModalPagamento(faturaAtual)}
+                              className="px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
+                            >
+                              Pagar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Toggle Compras/Faturas */}
+                      <button
+                        onClick={() => setExpandedCard(expandido ? null : `cartao-${cartao.id}`)}
+                        className="w-full py-2 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-1"
+                      >
+                        {expandido ? 'Ocultar' : 'Ver'} detalhes
+                        {expandido ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      </button>
+
+                      {/* Área Expandida */}
+                      {expandido && (
+                        <div className="pt-3 border-t space-y-3">
+                          {/* Tabs */}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setSecaoExpandida('compras')}
+                              className={`flex-1 py-1.5 text-xs font-medium rounded ${
+                                secaoExpandida === 'compras'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              }`}
+                            >
+                              Compras
+                            </button>
+                            <button
+                              onClick={() => setSecaoExpandida('faturas')}
+                              className={`flex-1 py-1.5 text-xs font-medium rounded ${
+                                secaoExpandida === 'faturas'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              }`}
+                            >
+                              Faturas
+                            </button>
+                          </div>
+
+                          {/* Conteúdo das Tabs */}
+                          <div className="max-h-64 overflow-y-auto">
+                            {secaoExpandida === 'compras' ? (
+                              (() => {
+                                const mesAtual = new Date().toISOString().slice(0, 7);
+                                const compras = transacoes
+                                  .filter(t => t.cartaoId === cartao.id && t.data.startsWith(mesAtual))
+                                  .sort((a, b) => new Date(b.data) - new Date(a.data));
+
+                                if (compras.length === 0) {
+                                  return <p className="text-xs text-gray-500 text-center py-4">Sem compras este mês</p>;
+                                }
+
+                                return compras.map(t => (
+                                  <div
+                                    key={t.id}
+                                    className="flex justify-between items-start p-2 hover:bg-gray-50 rounded text-xs group"
+                                  >
+                                    <div className="flex-1 cursor-pointer" onClick={() => setTransacaoSelecionada(t)}>
+                                      <p className="font-medium text-gray-900">{t.descricao}</p>
+                                      <p className="text-gray-500">{new Date(t.data).toLocaleDateString('pt-BR')}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-semibold text-gray-900">
+                                        R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      </p>
+                                      <button
+                                        onClick={() => {
+                                          if (window.confirm('Deletar esta transação?')) {
+                                            setTransacoes(transacoes.filter(tr => tr.id !== t.id));
+                                          }
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 p-1 text-red-600 hover:bg-red-50 rounded"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ));
+                              })()
+                            ) : (
+                              (() => {
+                                const faturasCartao = faturas
+                                  .filter(f => f.cartaoId === cartao.id)
+                                  .sort((a, b) => new Date(b.dataVencimento) - new Date(a.dataVencimento))
+                                  .slice(0, 5);
+
+                                if (faturasCartao.length === 0) {
+                                  return <p className="text-xs text-gray-500 text-center py-4">Sem faturas</p>;
+                                }
+
+                                return faturasCartao.map(f => (
+                                  <div key={f.id} className="flex justify-between items-center p-2 hover:bg-gray-50 rounded text-xs">
+                                    <div>
+                                      <p className="font-medium text-gray-900">
+                                        {new Date(f.dataVencimento).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
+                                      </p>
+                                      <p className={`text-xs ${f.pago ? 'text-green-600' : 'text-orange-600'}`}>
+                                        {f.pago ? 'Paga' : 'Aberta'}
+                                      </p>
+                                    </div>
+                                    <p className="font-semibold">R$ {f.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                  </div>
+                                ));
+                              })()
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ==================== TODAS AS TRANSAÇÕES ==================== */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <FileText size={20} className="text-green-600" />
+              Todas as Transações
+            </h3>
+            <div className="flex gap-2">
+              <select
+                value={filtroTransacoes}
+                onChange={(e) => setFiltroTransacoes(e.target.value)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="todos">Todas</option>
+                <option value="receitas">Receitas</option>
+                <option value="despesas">Despesas</option>
+              </select>
+              {!modoSelecao ? (
+                <button
+                  onClick={() => {
+                    setModoSelecao(true);
+                    setTransacoesSelecionadas([]);
+                  }}
+                  className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
+                >
+                  Selecionar
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      setModoSelecao(false);
+                      setTransacoesSelecionadas([]);
+                    }}
+                    className="px-3 py-1.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (window.confirm(`Deletar ${transacoesSelecionadas.length} transação(ões)?`)) {
+                        for (const id of transacoesSelecionadas) {
+                          const transacao = transacoes.find(t => t.id === id);
+                          if (transacao) {
+                            await atualizarTransacao({ ...transacao, deleted: true });
+                          }
+                        }
+                        setTransacoes(transacoes.filter(t => !transacoesSelecionadas.includes(t.id)));
+                        setTransacoesSelecionadas([]);
+                        setModoSelecao(false);
+                      }
+                    }}
+                    disabled={transacoesSelecionadas.length === 0}
+                    className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm disabled:opacity-50"
+                  >
+                    Deletar ({transacoesSelecionadas.length})
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Filtro de Tags */}
+          {allTags.length > 0 && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-medium text-gray-600">Tags:</span>
+                {allTags.map(tag => {
+                  const isSelected = filtroTags.includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      onClick={() => {
+                        if (isSelected) {
+                          setFiltroTags(filtroTags.filter(t => t !== tag));
+                        } else {
+                          setFiltroTags([...filtroTags, tag]);
+                        }
+                      }}
+                      className={`px-2 py-1 rounded-full text-xs transition-colors ${
+                        isSelected
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-gray-700 border border-gray-300 hover:border-blue-500'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+                {filtroTags.length > 0 && (
+                  <button
+                    onClick={() => setFiltroTags([])}
+                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Lista de Transações */}
+          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            {(() => {
+              const transacoesFiltradas = transacoes.filter(t => {
+                let passaTipo = true;
+                if (filtroTransacoes === 'receitas') passaTipo = t.tipo === 'receita';
+                if (filtroTransacoes === 'despesas') passaTipo = t.tipo === 'despesa';
+
+                let passaTags = true;
+                if (filtroTags.length > 0) {
+                  passaTags = filtroTags.some(tag => t.tags && t.tags.includes(tag));
+                }
+
+                return passaTipo && passaTags;
+              });
+
+              if (transacoesFiltradas.length === 0) {
+                return (
+                  <div className="p-8 text-center">
+                    <FileText size={40} className="mx-auto text-gray-300 mb-2" />
+                    <p className="text-gray-500 text-sm">Nenhuma transação encontrada</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="divide-y divide-gray-200">
+                  {transacoesFiltradas.map(t => (
+                    <div
+                      key={t.id}
+                      className="p-3 hover:bg-gray-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-3">
+                        {modoSelecao && (
+                          <input
+                            type="checkbox"
+                            checked={transacoesSelecionadas.includes(t.id)}
+                            onChange={() => toggleSelecaoTransacao(t.id)}
+                            className="w-4 h-4 text-blue-600 rounded"
+                          />
+                        )}
+                        <div
+                          className="flex-1 cursor-pointer"
+                          onClick={() => !modoSelecao && setTransacaoSelecionada(t)}
+                        >
+                          <p className="font-medium text-gray-900 text-sm">{t.descricao}</p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(t.data).toLocaleDateString('pt-BR')} • {t.categoria}
+                            {t.parcelamento && ` • ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <p className={`font-semibold text-sm ${t.tipo === 'receita' ? 'text-green-600' : 'text-gray-900'}`}>
+                            {t.tipo === 'receita' ? '+' : '-'} R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                          {!modoSelecao && (
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => {
+                                  setTipoModal('transacao');
+                                  setFormData(t);
+                                  setModalAberto(true);
+                                }}
+                                className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                                title="Editar"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm('Deletar esta transação?')) {
+                                    setTransacoes(transacoes.filter(tr => tr.id !== t.id));
+                                  }
+                                }}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                title="Deletar"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // ==================== RENDER CONTA CORRENTE ====================
@@ -2581,31 +3281,65 @@ const MainApp = ({ user }) => {
               </div>
 
               <div className="space-y-3 pt-4 border-t">
-                {/* Contexto CONTA: mostrar apenas seleção de conta bancária */}
-                {contextoModal === 'conta' && (
-                  <>
-                    <label className="block text-sm font-medium text-gray-700">Conta Bancária</label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-gray-700">Forma de Pagamento</label>
+                  {(formData.contaId || formData.cartaoId) && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData({...formData, contaId: null, cartaoId: null})}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Alterar
+                    </button>
+                  )}
+                </div>
+
+                {!formData.contaId && !formData.cartaoId ? (
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({...formData, contaId: contas[0]?.id, cartaoId: null})}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 text-left transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Wallet size={18} className="text-blue-600" />
+                        <span className="font-medium text-gray-900">Conta Bancária</span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({...formData, cartaoId: cartoes[0]?.id, contaId: null})}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 text-left transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <CreditCard size={18} className="text-purple-600" />
+                        <span className="font-medium text-gray-900">Cartão de Crédito</span>
+                      </div>
+                    </button>
+                  </div>
+                ) : formData.contaId ? (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-2">Conta Bancária</label>
                     <select
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       value={formData.contaId || ''}
-                      onChange={(e) => setFormData({...formData, contaId: parseInt(e.target.value), cartaoId: null})}
+                      onChange={(e) => setFormData({...formData, contaId: parseInt(e.target.value)})}
                     >
                       {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                     </select>
-                  </>
-                )}
-
-                {/* Contexto CARTÃO: mostrar apenas seleção de cartão e opção de parcelamento */}
-                {contextoModal === 'cartao' && (
+                  </div>
+                ) : formData.cartaoId ? (
                   <>
-                    <label className="block text-sm font-medium text-gray-700">Cartão de Crédito</label>
-                    <select
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      value={formData.cartaoId || ''}
-                      onChange={(e) => setFormData({...formData, cartaoId: parseInt(e.target.value), contaId: null})}
-                    >
-                      {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                    </select>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-2">Cartão de Crédito</label>
+                      <select
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                        value={formData.cartaoId || ''}
+                        onChange={(e) => setFormData({...formData, cartaoId: parseInt(e.target.value)})}
+                      >
+                        {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                      </select>
+                    </div>
 
                     <label className="flex items-center">
                       <input
@@ -2636,87 +3370,7 @@ const MainApp = ({ user }) => {
                       </div>
                     )}
                   </>
-                )}
-
-                {/* SEM CONTEXTO: mostrar ambas as opções (comportamento antigo) */}
-                {!contextoModal && (
-                  <>
-                    <label className="block text-sm font-medium text-gray-700">Forma de Pagamento</label>
-
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="formaPagamento"
-                        className="mr-2"
-                        checked={formData.contaId && !formData.cartaoId}
-                        onChange={() => setFormData({...formData, contaId: contas[0]?.id, cartaoId: null})}
-                      />
-                      <span className="text-sm">Conta Bancária</span>
-                    </label>
-
-                    {formData.contaId && !formData.cartaoId && (
-                      <select
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg ml-6"
-                        value={formData.contaId || ''}
-                        onChange={(e) => setFormData({...formData, contaId: parseInt(e.target.value)})}
-                      >
-                        {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                      </select>
-                    )}
-
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="formaPagamento"
-                        className="mr-2"
-                        checked={formData.cartaoId}
-                        onChange={() => setFormData({...formData, cartaoId: cartoes[0]?.id, contaId: null})}
-                      />
-                      <span className="text-sm">Cartão de Crédito</span>
-                    </label>
-
-                    {formData.cartaoId && (
-                      <>
-                        <select
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg ml-6"
-                          value={formData.cartaoId || ''}
-                          onChange={(e) => setFormData({...formData, cartaoId: parseInt(e.target.value)})}
-                        >
-                          {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                        </select>
-
-                        <label className="flex items-center ml-6">
-                          <input
-                            type="checkbox"
-                            className="mr-2"
-                            checked={formData.parcelado || false}
-                            onChange={(e) => setFormData({...formData, parcelado: e.target.checked})}
-                          />
-                          <span className="text-sm">Parcelado</span>
-                        </label>
-
-                        {formData.parcelado && (
-                          <div className="ml-6">
-                            <input
-                              type="number"
-                              min="2"
-                              max="24"
-                              placeholder="Número de parcelas"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                              value={formData.numeroParcelas || ''}
-                              onChange={(e) => setFormData({...formData, numeroParcelas: e.target.value})}
-                            />
-                            {formData.numeroParcelas && formData.valor && (
-                              <p className="text-sm text-gray-600 mt-1">
-                                {formData.numeroParcelas}x de R$ {(parseFloat(formData.valor) / parseInt(formData.numeroParcelas)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </>
-                )}
+                ) : null}
               </div>
             </div>
           )}
@@ -3071,19 +3725,34 @@ const MainApp = ({ user }) => {
                       return;
                     }
 
-                    const novaConta = {
-                      id: Date.now(),
-                      nome: formData.nome,
-                      banco: formData.banco,
-                      agencia: formData.agencia || '',
-                      numero: formData.numero || '',
-                      tipo: formData.tipo,
-                      saldo: parseFloat(formData.saldo) || 0,
-                      dataCriacao: new Date().toISOString()
-                    };
-
-                    await adicionarConta(novaConta);
-                    alert('Conta criada com sucesso!');
+                    if (formData.id) {
+                      // Editando conta existente
+                      const contaAtualizada = {
+                        ...formData,
+                        nome: formData.nome,
+                        banco: formData.banco,
+                        agencia: formData.agencia || '',
+                        numero: formData.numero || '',
+                        tipo: formData.tipo,
+                        saldo: parseFloat(formData.saldo) || 0
+                      };
+                      await atualizarConta(contaAtualizada);
+                      alert('Conta atualizada com sucesso!');
+                    } else {
+                      // Criando nova conta
+                      const novaConta = {
+                        id: Date.now(),
+                        nome: formData.nome,
+                        banco: formData.banco,
+                        agencia: formData.agencia || '',
+                        numero: formData.numero || '',
+                        tipo: formData.tipo,
+                        saldo: parseFloat(formData.saldo) || 0,
+                        dataCriacao: new Date().toISOString()
+                      };
+                      await adicionarConta(novaConta);
+                      alert('Conta criada com sucesso!');
+                    }
                   }
                   else if (tipoModal === 'cartao') {
                     // Validar campos obrigatórios
@@ -3092,20 +3761,36 @@ const MainApp = ({ user }) => {
                       return;
                     }
 
-                    const novoCartao = {
-                      id: Date.now(),
-                      nome: formData.nome,
-                      numero: formData.numero,
-                      limite: parseFloat(formData.limite),
-                      diaFechamento: parseInt(formData.diaFechamento) || 1,
-                      diaVencimento: parseInt(formData.diaVencimento) || 10,
-                      bandeira: formData.bandeira,
-                      contaVinculada: formData.contaVinculada || null,
-                      dataCriacao: new Date().toISOString()
-                    };
-
-                    await adicionarCartao(novoCartao);
-                    alert('Cartão criado com sucesso!');
+                    if (formData.id) {
+                      // Editando cartão existente
+                      const cartaoAtualizado = {
+                        ...formData,
+                        nome: formData.nome,
+                        numero: formData.numero,
+                        limite: parseFloat(formData.limite),
+                        diaFechamento: parseInt(formData.diaFechamento) || 1,
+                        diaVencimento: parseInt(formData.diaVencimento) || 10,
+                        bandeira: formData.bandeira,
+                        contaVinculada: formData.contaVinculada || null
+                      };
+                      await atualizarCartao(cartaoAtualizado);
+                      alert('Cartão atualizado com sucesso!');
+                    } else {
+                      // Criando novo cartão
+                      const novoCartao = {
+                        id: Date.now(),
+                        nome: formData.nome,
+                        numero: formData.numero,
+                        limite: parseFloat(formData.limite),
+                        diaFechamento: parseInt(formData.diaFechamento) || 1,
+                        diaVencimento: parseInt(formData.diaVencimento) || 10,
+                        bandeira: formData.bandeira,
+                        contaVinculada: formData.contaVinculada || null,
+                        dataCriacao: new Date().toISOString()
+                      };
+                      await adicionarCartao(novoCartao);
+                      alert('Cartão criado com sucesso!');
+                    }
                   }
                   else if (tipoModal === 'transacao') {
                     // Validar campos obrigatórios
@@ -3405,6 +4090,200 @@ const MainApp = ({ user }) => {
     );
   };
 
+  const renderModalDetalhesConta = () => {
+    if (!contaSelecionada) return null;
+
+    // Filtrar transações da conta
+    const transacoesConta = transacoes.filter(t => t.contaId === contaSelecionada.id);
+
+    // Ordenar por data (mais recente primeiro)
+    const transacoesOrdenadas = [...transacoesConta].sort((a, b) =>
+      new Date(b.data) - new Date(a.data)
+    );
+
+    // Calcular estatísticas
+    const totalReceitas = transacoesConta
+      .filter(t => t.tipo === 'receita')
+      .reduce((acc, t) => acc + t.valor, 0);
+
+    const totalDespesas = transacoesConta
+      .filter(t => t.tipo === 'despesa')
+      .reduce((acc, t) => acc + t.valor, 0);
+
+    const saldoMovimentacoes = totalReceitas - totalDespesas;
+
+    // Buscar cartões vinculados
+    const cartoesVinculados = cartoes.filter(c =>
+      contaSelecionada.cartoesVinculados && contaSelecionada.cartoesVinculados.includes(c.id)
+    );
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900">{contaSelecionada.nome}</h3>
+                <p className="text-sm text-gray-500 mt-1">{contaSelecionada.banco}</p>
+              </div>
+              <button
+                onClick={() => setContaSelecionada(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Informações da conta */}
+            <div className="grid grid-cols-3 gap-4 mt-6">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-xs text-gray-500 mb-1">Agência</p>
+                <p className="font-mono text-lg font-medium">{contaSelecionada.agencia}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-xs text-gray-500 mb-1">Conta</p>
+                <p className="font-mono text-lg font-medium">{contaSelecionada.numero}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-xs text-gray-500 mb-1">Tipo</p>
+                <p className="text-lg font-medium capitalize">{contaSelecionada.tipo}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Estatísticas */}
+          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+            <div className="grid grid-cols-4 gap-4">
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Saldo Atual</p>
+                <p className="text-xl font-bold text-gray-900">
+                  R$ {contaSelecionada.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Total Receitas</p>
+                <p className="text-xl font-bold text-green-600">
+                  R$ {totalReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Total Despesas</p>
+                <p className="text-xl font-bold text-red-600">
+                  R$ {totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Movimentações</p>
+                <p className={`text-xl font-bold ${saldoMovimentacoes >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  R$ {saldoMovimentacoes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            </div>
+
+            {cartoesVinculados.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <p className="text-xs text-gray-500 mb-2">Cartões Vinculados ({cartoesVinculados.length})</p>
+                <div className="flex flex-wrap gap-2">
+                  {cartoesVinculados.map(c => (
+                    <span key={c.id} className="px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded-full font-medium">
+                      {c.nome}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Histórico de Transações */}
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-bold text-gray-900">
+                Histórico de Transações ({transacoesConta.length})
+              </h4>
+            </div>
+
+            {transacoesOrdenadas.length === 0 ? (
+              <div className="text-center py-12">
+                <FileText size={48} className="mx-auto text-gray-300 mb-3" />
+                <p className="text-gray-500">Nenhuma transação encontrada nesta conta</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {transacoesOrdenadas.map(transacao => (
+                  <div
+                    key={transacao.id}
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900">{transacao.descricao}</p>
+                        {transacao.tags && transacao.tags.length > 0 && (
+                          <div className="flex gap-1">
+                            {transacao.tags.map((tag, idx) => (
+                              <span key={idx} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1">
+                        <p className="text-sm text-gray-500">
+                          {new Date(transacao.data).toLocaleDateString('pt-BR')}
+                        </p>
+                        <span className="text-gray-300">•</span>
+                        <p className="text-sm text-gray-500">{transacao.categoria}</p>
+                        <span className="text-gray-300">•</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          transacao.status === 'confirmado'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {transacao.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right ml-4">
+                      <p className={`text-lg font-bold ${
+                        transacao.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {transacao.tipo === 'receita' ? '+' : '-'}
+                        R$ {transacao.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-6 border-t border-gray-200 bg-gray-50">
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  handleEditarConta(contaSelecionada);
+                  setContaSelecionada(null);
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
+              >
+                <Edit2 size={16} />
+                Editar Conta
+              </button>
+              <button
+                onClick={() => setContaSelecionada(null)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 font-medium"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderModalImportacao = () => {
     if (!modalImportacao) return null;
 
@@ -3578,11 +4457,8 @@ const MainApp = ({ user }) => {
         <div className="max-w-7xl mx-auto px-6">
           <nav className="flex gap-8">
             {[
-              { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={18} /> },
-              { id: 'conta-corrente', label: 'Conta Corrente', icon: <DollarSign size={18} /> },
-              { id: 'faturas', label: 'Faturas', icon: <FileText size={18} /> },
-              { id: 'contas', label: 'Contas', icon: <Wallet size={18} /> },
-              { id: 'cartoes', label: 'Cartões', icon: <CreditCard size={18} /> },
+              { id: 'visao-geral', label: 'Visão Geral', icon: <BarChart3 size={18} /> },
+              { id: 'contas-cartoes', label: 'Contas & Cartões', icon: <Wallet size={18} /> },
               { id: 'planejamento', label: 'Planejamento', icon: <Target size={18} /> }
             ].map(tab => (
               <button
@@ -3604,11 +4480,8 @@ const MainApp = ({ user }) => {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {activeTab === 'dashboard' && renderDashboard()}
-        {activeTab === 'conta-corrente' && renderContaCorrente()}
-        {activeTab === 'faturas' && renderFaturas()}
-        {activeTab === 'contas' && renderContas()}
-        {activeTab === 'cartoes' && renderCartoes()}
+        {activeTab === 'visao-geral' && renderVisaoGeral()}
+        {activeTab === 'contas-cartoes' && renderContasCartoes()}
         {activeTab === 'planejamento' && renderPlanejamento()}
       </div>
 
@@ -3616,6 +4489,20 @@ const MainApp = ({ user }) => {
       {renderModalDetalhesTransacao()}
       {renderModalPagamento()}
       {renderModalImportacao()}
+      {renderModalDetalhesConta()}
+
+      {/* Botão Flutuante Global */}
+      <button
+        onClick={() => {
+          setTipoModal('transacao');
+          setFormData({});
+          setModalAberto(true);
+        }}
+        className="fixed bottom-8 right-8 w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-full shadow-2xl hover:shadow-3xl hover:scale-110 transition-all flex items-center justify-center z-50 group"
+        title="Nova Transação"
+      >
+        <Plus size={28} className="group-hover:rotate-90 transition-transform" />
+      </button>
     </div>
   );
 };
