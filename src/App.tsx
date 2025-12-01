@@ -285,45 +285,76 @@ const MainApp = ({ user }) => {
 
   /**
    * Gera faturas automaticamente para todos os cartões
+   * CORRIGIDO: Agora gera faturas para TODOS os períodos com transações, não só o mês atual
    */
   const gerarFaturasAutomaticamente = async () => {
     for (const cartao of cartoes) {
-      const periodo = calcularPeriodoFatura(cartao);
-
-      // Verificar se já existe fatura para este período
-      const faturaExistente = faturas.find(f =>
-        f.cartaoId === cartao.id && f.mes === periodo.mesReferencia
+      // 1. Obter todas as transações do cartão
+      const transacoesCartao = transacoes.filter(t =>
+        t.cartaoId === cartao.id && t.categoria !== 'Fatura Cartão'
       );
 
-      if (!faturaExistente) {
-        const valorTotal = calcularTotalFaturaCompleto(cartao.id, periodo);
+      // 2. Identificar todos os períodos únicos (meses de referência) das transações
+      const periodosComTransacoes = new Set();
 
-        const novaFatura = {
-          id: Date.now() + Math.random(), // Garantir ID único
-          cartaoId: cartao.id,
-          mes: periodo.mesReferencia,
-          valorTotal: valorTotal,
-          dataFechamento: periodo.dataFim,
-          dataVencimento: periodo.dataVencimento,
-          status: 'aberta',
-          pago: false,
-          dataPagamento: null,
-          dataCriacao: new Date().toISOString()
-        };
+      transacoesCartao.forEach(transacao => {
+        const mesReferencia = determinarFaturaTransacao(transacao, cartao);
+        periodosComTransacoes.add(mesReferencia);
+      });
 
-        await adicionarFatura(novaFatura);
-      } else {
-        // Atualizar valor da fatura se ainda não foi paga
-        if (!faturaExistente.pago) {
-          const valorAtualizado = calcularTotalFaturaCompleto(cartao.id, periodo);
-          const statusAtualizado = calcularStatusFatura({...faturaExistente, dataFechamento: periodo.dataFim});
+      // 3. Adicionar o período atual (mesmo sem transações, para fatura aberta)
+      const periodoAtual = calcularPeriodoFatura(cartao);
+      periodosComTransacoes.add(periodoAtual.mesReferencia);
 
-          await atualizarFatura({
-            ...faturaExistente,
-            valorTotal: valorAtualizado,
+      // 4. Para cada período, verificar se existe fatura. Se não, criar.
+      for (const mesReferencia of periodosComTransacoes) {
+        const faturaExistente = faturas.find(f =>
+          f.cartaoId === cartao.id && f.mes === mesReferencia
+        );
+
+        if (!faturaExistente) {
+          // Calcular período completo baseado no mês de referência
+          const [ano, mes] = mesReferencia.split('-').map(Number);
+          const dataReferencia = new Date(ano, mes - 1, cartao.diaFechamento);
+          const periodo = calcularPeriodoFatura(cartao, dataReferencia);
+
+          const valorTotal = calcularTotalFaturaCompleto(cartao.id, periodo);
+
+          const novaFatura = {
+            id: Date.now() + Math.random(), // Garantir ID único
+            cartaoId: cartao.id,
+            mes: periodo.mesReferencia,
+            valorTotal: valorTotal,
             dataFechamento: periodo.dataFim,
-            status: statusAtualizado
-          });
+            dataVencimento: periodo.dataVencimento,
+            status: calcularStatusFatura({
+              dataFechamento: periodo.dataFim,
+              dataVencimento: periodo.dataVencimento,
+              pago: false
+            }),
+            pago: false,
+            dataPagamento: null,
+            dataCriacao: new Date().toISOString()
+          };
+
+          await adicionarFatura(novaFatura);
+        } else {
+          // Atualizar valor da fatura se ainda não foi paga
+          if (!faturaExistente.pago) {
+            const [ano, mes] = mesReferencia.split('-').map(Number);
+            const dataReferencia = new Date(ano, mes - 1, cartao.diaFechamento);
+            const periodo = calcularPeriodoFatura(cartao, dataReferencia);
+
+            const valorAtualizado = calcularTotalFaturaCompleto(cartao.id, periodo);
+            const statusAtualizado = calcularStatusFatura({...faturaExistente, dataFechamento: periodo.dataFim});
+
+            await atualizarFatura({
+              ...faturaExistente,
+              valorTotal: valorAtualizado,
+              dataFechamento: periodo.dataFim,
+              status: statusAtualizado
+            });
+          }
         }
       }
     }
