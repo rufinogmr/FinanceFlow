@@ -67,7 +67,6 @@ const MainApp = ({ user }) => {
     adicionarTransacao,
     atualizarTransacao,
     removerTransacao,
-    atualizarFatura
     adicionarFatura,
     atualizarFatura,
     adicionarMeta,
@@ -350,9 +349,7 @@ const MainApp = ({ user }) => {
 
   // ==================== FIM FUNÇÕES CICLO DE FATURA ====================
 
-  // Estados para multi-seleção e filtros avançados
-  const [transacoesSelecionadas, setTransacoesSelecionadas] = useState([]);
-  const [modoSelecao, setModoSelecao] = useState(false);
+  // Estados para filtros avançados
   const [mostrarFiltrosAvancados, setMostrarFiltrosAvancados] = useState(false);
   const [filtroCategoria, setFiltroCategoria] = useState('');
   const [filtroDataInicio, setFiltroDataInicio] = useState('');
@@ -3024,399 +3021,9 @@ const MainApp = ({ user }) => {
                           </p>
                         </div>
                       </div>
-
-  const renderTransacoes = () => {
-    // Aplicar filtros
-    const transacoesFiltradas = transacoes.filter(t => {
-      // Filtro básico de tipo
-      if (filtroTransacoes === 'receitas' && t.tipo !== 'receita') return false;
-      if (filtroTransacoes === 'despesas' && t.tipo !== 'despesa') return false;
-
-      // Filtros avançados
-      if (filtroCategoria && t.categoria !== filtroCategoria) return false;
-
-      if (filtroDataInicio && t.data < filtroDataInicio) return false;
-      if (filtroDataFim && t.data > filtroDataFim) return false;
-
-      const valor = t.parcelamento ? t.parcelamento.valorParcela : t.valor;
-      if (filtroValorMin && valor < parseFloat(filtroValorMin)) return false;
-      if (filtroValorMax && valor > parseFloat(filtroValorMax)) return false;
-
-      return true;
-    });
-
-    const handleSelecionarTodos = () => {
-      if (transacoesSelecionadas.length === transacoesFiltradas.length) {
-        setTransacoesSelecionadas([]);
-      } else {
-        setTransacoesSelecionadas(transacoesFiltradas.map(t => t.id));
-      }
-    };
-
-    const handleToggleSelecao = (id) => {
-      if (transacoesSelecionadas.includes(id)) {
-        setTransacoesSelecionadas(transacoesSelecionadas.filter(tId => tId !== id));
-      } else {
-        setTransacoesSelecionadas([...transacoesSelecionadas, id]);
-      }
-    };
-
-    const handleDeletarSelecionadas = async () => {
-      if (transacoesSelecionadas.length === 0) return;
-
-      if (!confirm(`Deseja realmente deletar ${transacoesSelecionadas.length} transação(ões)?`)) return;
-
-      try {
-        await Promise.all(transacoesSelecionadas.map(id => removerTransacao(id)));
-        setTransacoesSelecionadas([]);
-        setModoSelecao(false);
-        alert('Transações deletadas com sucesso!');
-      } catch (error) {
-        console.error('Erro ao deletar transações:', error);
-        alert('Erro ao deletar transações. Tente novamente.');
-      }
-    };
-
-    const handleEditarTransacao = (t, e) => {
-      e.stopPropagation();
-      setFormData({
-        id: t.id,
-        tipo: t.tipo,
-        descricao: t.descricao,
-        valor: t.valor,
-        data: t.data,
-        categoria: t.categoria,
-        contaId: t.contaId,
-        cartaoId: t.cartaoId,
-        parcelado: !!t.parcelamento,
-        numeroParcelas: t.parcelamento?.parcelas,
-        status: t.status
-      });
-      setTipoModal('transacao');
-      setModalAberto(true);
-    };
-
-    const handleDeletarTransacao = async (id, e) => {
-      e.stopPropagation();
-      if (!confirm('Deseja realmente deletar esta transação?')) return;
-
-      try {
-        await removerTransacao(id);
-        alert('Transação deletada com sucesso!');
-      } catch (error) {
-        console.error('Erro ao deletar transação:', error);
-        alert('Erro ao deletar transação. Tente novamente.');
-      }
-    };
-
-    const limparFiltros = () => {
-      setFiltroCategoria('');
-      setFiltroDataInicio('');
-      setFiltroDataFim('');
-      setFiltroValorMin('');
-      setFiltroValorMax('');
-    };
-
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Transações</h2>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setModoSelecao(!modoSelecao)}
-              className={`px-4 py-2 border rounded-lg text-sm font-medium ${
-                modoSelecao
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              {modoSelecao ? 'Cancelar Seleção' : 'Selecionar'}
-            </button>
-            {modoSelecao && transacoesSelecionadas.length > 0 && (
-              <button
-                onClick={handleDeletarSelecionadas}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
-              >
-                Deletar ({transacoesSelecionadas.length})
-              </button>
-            )}
-            <button
-              onClick={() => setMostrarFiltrosAvancados(!mostrarFiltrosAvancados)}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-sm font-medium"
-            >
-              <Filter size={16} />
-              Filtros
-            </button>
-            <select
-              value={filtroTransacoes}
-              onChange={(e) => setFiltroTransacoes(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
-            >
-              <option value="todos">Todas</option>
-              <option value="receitas">Receitas</option>
-              <option value="despesas">Despesas</option>
-            </select>
-            <button
-              onClick={() => {
-                setTipoModal('transacao');
-                setFormData({});
-                setModalAberto(true);
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
-            >
-              <Plus size={16} />
-              Nova Transação
-            </button>
-          </div>
-        </div>
-
-        {/* Filtros Avançados */}
-        {mostrarFiltrosAvancados && (
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">Filtros Avançados</h3>
-              <button
-                onClick={limparFiltros}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                Limpar filtros
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
-                <select
-                  value={filtroCategoria}
-                  onChange={(e) => setFiltroCategoria(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                >
-                  <option value="">Todas</option>
-                  <option value="Alimentação">Alimentação</option>
-                  <option value="Transporte">Transporte</option>
-                  <option value="Moradia">Moradia</option>
-                  <option value="Saúde">Saúde</option>
-                  <option value="Educação">Educação</option>
-                  <option value="Lazer">Lazer</option>
-                  <option value="Eletrônicos">Eletrônicos</option>
-                  <option value="Assinaturas">Assinaturas</option>
-                  <option value="Salário">Salário</option>
-                  <option value="Investimento">Investimento</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data Início</label>
-                <input
-                  type="date"
-                  value={filtroDataInicio}
-                  onChange={(e) => setFiltroDataInicio(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data Fim</label>
-                <input
-                  type="date"
-                  value={filtroDataFim}
-                  onChange={(e) => setFiltroDataFim(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Valor Mínimo</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="R$ 0,00"
-                  value={filtroValorMin}
-                  onChange={(e) => setFiltroValorMin(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Valor Máximo</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="R$ 9999,99"
-                  value={filtroValorMax}
-                  onChange={(e) => setFiltroValorMax(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Lista de Transações */}
-        <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-200">
-          {modoSelecao && transacoesFiltradas.length > 0 && (
-            <div className="p-4 bg-gray-50 border-b border-gray-200">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={transacoesSelecionadas.length === transacoesFiltradas.length}
-                  onChange={handleSelecionarTodos}
-                  className="w-4 h-4 text-blue-600 rounded"
-                />
-                <span className="text-sm font-medium text-gray-700">
-                  Selecionar todas ({transacoesFiltradas.length})
-                </span>
-              </label>
-            </div>
-          )}
-
-          {transacoesFiltradas.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              Nenhuma transação encontrada
-            </div>
-          ) : (
-            transacoesFiltradas.map(t => (
-              <div
-                key={t.id}
-                className={`p-4 transition-colors ${
-                  modoSelecao ? 'hover:bg-blue-50' : 'hover:bg-gray-50 cursor-pointer'
-                } ${transacoesSelecionadas.includes(t.id) ? 'bg-blue-50' : ''}`}
-                onClick={() => {
-                  if (modoSelecao) {
-                    handleToggleSelecao(t.id);
-                  } else {
-                    setTransacaoSelecionada(t);
-                  }
-                }}
-              >
-                <div className="flex items-center justify-between">
-                  {modoSelecao && (
-                    <input
-                      type="checkbox"
-                      checked={transacoesSelecionadas.includes(t.id)}
-                      onChange={() => handleToggleSelecao(t.id)}
-                      className="w-4 h-4 text-blue-600 rounded mr-3"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  )}
-
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{t.descricao}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-sm text-gray-500">{t.categoria}</span>
-                      <span className="text-gray-300">•</span>
-                      <span className="text-sm text-gray-500">{new Date(t.data).toLocaleDateString('pt-BR')}</span>
-                      {t.parcelamento && (
-                        <>
-                          <span className="text-gray-300">•</span>
-                          <span className="text-sm text-purple-600 font-medium">
-                            {t.parcelamento.parcelaAtual}/{t.parcelamento.parcelas}x
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="text-right flex items-center gap-3">
-                    <div>
-                      <p className={`font-semibold ${t.tipo === 'receita' ? 'text-green-600' : 'text-gray-900'}`}>
-                        {t.tipo === 'receita' ? '+' : '-'} R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </p>
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        t.status === 'confirmado' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        {t.status}
-                      </span>
-                    </div>
-
-                    {!modoSelecao && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => handleEditarTransacao(t, e)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Editar"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={(e) => handleDeletarTransacao(t.id, e)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Deletar"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                        <ChevronRight size={18} className="text-gray-400" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-                      {desp.contaId && (
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <p className="text-xs text-gray-500">
-                            Conta: <span className="font-medium text-gray-700">
-                              {contas.find(c => c.id === desp.contaId)?.nome || 'N/A'}
-                            </span>
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Botão de pagamento rápido */}
-                      {ativa && diasAteProxima <= 7 && diasAteProxima >= 0 && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <button
-                            onClick={async () => {
-                              if (window.confirm(`Confirma o pagamento de "${desp.descricao}"?\n\nValor: R$ ${desp.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\nUma transação será criada automaticamente e a próxima data será atualizada.`)) {
-                                await efetivarPagamentoDespesa(desp);
-                              }
-                            }}
-                            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 text-sm font-medium transition-colors"
-                          >
-                            <CheckCircle size={16} />
-                            Pagar Agora
-                          </button>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
-
-                {/* Resumo mensal */}
-                <div className="mt-6 pt-6 border-t-2 border-gray-300">
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-5">
-                    <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
-                      <Calendar size={18} />
-                      Resumo Mensal de Despesas Recorrentes
-                    </h4>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <p className="text-purple-700">Total Mensal</p>
-                        <p className="font-bold text-purple-900 text-2xl">
-                          R$ {despesasRecorrentes
-                            .filter(d => d.ativa !== false && d.frequencia === 'mensal')
-                            .reduce((acc, d) => acc + d.valor, 0)
-                            .toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-purple-700">Despesas Ativas</p>
-                        <p className="font-bold text-purple-900 text-2xl">
-                          {despesasRecorrentes.filter(d => d.ativa !== false).length}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-purple-700">Próximas 7 dias</p>
-                        <p className="font-bold text-purple-900 text-2xl">
-                          {despesasRecorrentes.filter(d => {
-                            const dias = Math.ceil((new Date(d.proximaData) - new Date()) / (1000 * 60 * 60 * 24));
-                            return d.ativa !== false && dias >= 0 && dias <= 7;
-                          }).length}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
           </div>
@@ -3424,6 +3031,7 @@ const MainApp = ({ user }) => {
       </div>
     );
   };
+
 
   const imprimirRecibo = (transacao) => {
     const conta = transacao.contaId ? contas.find(c => c.id === transacao.contaId) : null;
@@ -4149,17 +3757,14 @@ const MainApp = ({ user }) => {
                       return;
                     }
 
-                    const transacaoData = {
-                      id: formData.id || Date.now(), // Usa ID existente se for edição
-                      tipo: formData.tipo,
                     // VALIDAÇÃO IMPORTANTE: Não permitir receita com cartão de crédito
                     if (formData.cartaoId && tipoFinal === 'receita') {
                       alert('❌ Erro: Não é possível ter uma RECEITA em cartão de crédito! Cartões só podem ter DESPESAS.');
                       return;
                     }
 
-                    const novaTransacao = {
-                      id: Date.now(),
+                    const transacaoData = {
+                      id: formData.id || Date.now(), // Usa ID existente se for edição
                       tipo: tipoFinal, // Usar tipoFinal para garantir que seja 'despesa' quando for cartão
                       descricao: formData.descricao,
                       valor: parseFloat(formData.valor),
@@ -4168,9 +3773,7 @@ const MainApp = ({ user }) => {
                       contaId: formData.contaId || null,
                       cartaoId: formData.cartaoId || null,
                       status: formData.status || 'confirmado',
-                      dataCriacao: formData.dataCriacao || new Date().toISOString()
-                      status: 'confirmado',
-                      dataCriacao: new Date().toISOString(),
+                      dataCriacao: formData.dataCriacao || new Date().toISOString(),
                       tags: formData.tags || []
                     };
 
