@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LogIn, Mail, Lock, Chrome } from 'lucide-react';
+import { LogIn, Mail, Lock, Chrome, Eye, EyeOff } from 'lucide-react';
 import { loginComGoogle, loginComEmail, registrarComEmail } from './firebase';
 
 const LoginScreen = ({ onLoginSuccess }) => {
@@ -8,24 +8,72 @@ const LoginScreen = ({ onLoginSuccess }) => {
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
+  const [mostrarSenha, setMostrarSenha] = useState(false);
+
+  // Calcular força da senha
+  const calcularForcaSenha = (senha) => {
+    if (!senha) return { nivel: 0, texto: '' };
+    let forca = 0;
+    if (senha.length >= 6) forca++;
+    if (senha.length >= 8) forca++;
+    if (/[A-Z]/.test(senha)) forca++;
+    if (/[0-9]/.test(senha)) forca++;
+    if (/[^A-Za-z0-9]/.test(senha)) forca++;
+
+    if (forca <= 1) return { nivel: 1, texto: 'Fraca', cor: 'bg-red-500' };
+    if (forca <= 3) return { nivel: 2, texto: 'Média', cor: 'bg-yellow-500' };
+    return { nivel: 3, texto: 'Forte', cor: 'bg-green-500' };
+  };
+
+  const forcaSenha = calcularForcaSenha(senha);
 
   const handleGoogleLogin = async () => {
     setCarregando(true);
     setErro('');
     try {
-      await loginComGoogle();
-      // Usuário será redirecionado para autenticação do Google
-      // Após retornar, o App.tsx verificará o resultado automaticamente
+      console.log('Iniciando login com Google...');
+      const user = await loginComGoogle();
+      console.log('Login bem-sucedido:', user);
+      onLoginSuccess(user);
     } catch (error) {
-      setErro('Erro ao fazer login com Google. Tente novamente.');
+      console.error('Erro ao fazer login com Google:', error);
+
+      // Tratamento específico de erros do popup
+      if (error.code === 'auth/popup-closed-by-user') {
+        setErro('❌ Login cancelado pelo usuário.');
+      } else if (error.code === 'auth/popup-blocked') {
+        setErro('❌ Popup bloqueado pelo navegador. Permita popups para este site.');
+      } else if (error.code === 'auth/network-request-failed') {
+        setErro('❌ Erro de conexão. Verifique sua internet.');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        setErro('❌ Domínio não autorizado. Configure o Firebase Console.');
+      } else {
+        setErro(`❌ Erro ao fazer login com Google: ${error.message}`);
+      }
+
       setCarregando(false);
     }
   };
 
   const handleEmailAuth = async (e) => {
     e.preventDefault();
+
+    // Validações básicas
     if (!email || !senha) {
       setErro('Preencha todos os campos');
+      return;
+    }
+
+    // Validação de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setErro('Email inválido');
+      return;
+    }
+
+    // Validação de senha
+    if (senha.length < 6) {
+      setErro('A senha deve ter no mínimo 6 caracteres');
       return;
     }
 
@@ -33,23 +81,38 @@ const LoginScreen = ({ onLoginSuccess }) => {
     setErro('');
     try {
       if (modo === 'login') {
+        console.log('Tentando fazer login com email:', email);
         const user = await loginComEmail(email, senha);
+        console.log('Login bem-sucedido:', user);
         onLoginSuccess(user);
       } else {
+        console.log('Tentando criar conta com email:', email);
         const user = await registrarComEmail(email, senha);
+        console.log('Conta criada com sucesso:', user);
         onLoginSuccess(user);
       }
     } catch (error) {
+      console.error('Erro detalhado:', error);
+
+      // Tratamento específico de erros do Firebase
       if (error.code === 'auth/user-not-found') {
-        setErro('Usuário não encontrado');
+        setErro('❌ Usuário não encontrado. Você precisa criar uma conta primeiro.');
       } else if (error.code === 'auth/wrong-password') {
-        setErro('Senha incorreta');
+        setErro('❌ Senha incorreta. Verifique sua senha e tente novamente.');
       } else if (error.code === 'auth/email-already-in-use') {
-        setErro('Email já cadastrado');
+        setErro('❌ Este email já está cadastrado. Tente fazer login.');
       } else if (error.code === 'auth/weak-password') {
-        setErro('Senha muito fraca (mín. 6 caracteres)');
+        setErro('❌ Senha muito fraca. Use no mínimo 6 caracteres.');
+      } else if (error.code === 'auth/invalid-email') {
+        setErro('❌ Email inválido. Verifique o formato do email.');
+      } else if (error.code === 'auth/invalid-credential') {
+        setErro('❌ Email ou senha incorretos. Verifique seus dados.');
+      } else if (error.code === 'auth/network-request-failed') {
+        setErro('❌ Erro de conexão. Verifique sua internet.');
+      } else if (error.code === 'auth/too-many-requests') {
+        setErro('❌ Muitas tentativas. Aguarde alguns minutos e tente novamente.');
       } else {
-        setErro('Erro ao autenticar. Tente novamente.');
+        setErro(`❌ Erro: ${error.message || 'Erro desconhecido. Tente novamente.'}`);
       }
     } finally {
       setCarregando(false);
@@ -116,6 +179,7 @@ const LoginScreen = ({ onLoginSuccess }) => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="seu@email.com"
+                autoComplete="email"
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 disabled={carregando}
               />
@@ -124,19 +188,43 @@ const LoginScreen = ({ onLoginSuccess }) => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Senha
+              Senha {modo === 'registro' && '(mínimo 6 caracteres)'}
             </label>
             <div className="relative">
               <Lock size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
-                type="password"
+                type={mostrarSenha ? "text" : "password"}
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 placeholder="••••••••"
+                autoComplete={modo === 'login' ? 'current-password' : 'new-password'}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 disabled={carregando}
               />
+              <button
+                type="button"
+                onClick={() => setMostrarSenha(!mostrarSenha)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {mostrarSenha ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
             </div>
+
+            {/* Indicador de força da senha (apenas no modo registro) */}
+            {modo === 'registro' && senha.length > 0 && (
+              <div className="mt-2">
+                <div className="flex gap-1 mb-1">
+                  <div className={`h-1 flex-1 rounded ${forcaSenha.nivel >= 1 ? forcaSenha.cor : 'bg-gray-200'}`}></div>
+                  <div className={`h-1 flex-1 rounded ${forcaSenha.nivel >= 2 ? forcaSenha.cor : 'bg-gray-200'}`}></div>
+                  <div className={`h-1 flex-1 rounded ${forcaSenha.nivel >= 3 ? forcaSenha.cor : 'bg-gray-200'}`}></div>
+                </div>
+                <p className="text-xs text-gray-600">
+                  Força da senha: <span className={forcaSenha.nivel === 1 ? 'text-red-600' : forcaSenha.nivel === 2 ? 'text-yellow-600' : 'text-green-600'}>
+                    {forcaSenha.texto}
+                  </span>
+                </p>
+              </div>
+            )}
           </div>
 
           <button

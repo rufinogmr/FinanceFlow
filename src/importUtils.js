@@ -1,5 +1,6 @@
 import OFXParser from 'ofx-js';
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 /**
  * Mapeia categoria do extrato para categoria do sistema
@@ -343,6 +344,113 @@ data,valor,descricao
 };
 
 /**
+ * Parser para arquivos XLSX
+ * Formato esperado: Data, Estabelecimento, Descrição, Categoria, Conta, Valor
+ * @param {ArrayBuffer} conteudo - Conteúdo do arquivo XLSX
+ * @returns {Promise<Array>} Array de transações
+ */
+export const parseXLSX = async (conteudo) => {
+  try {
+    const workbook = XLSX.read(conteudo, { type: 'array' });
+
+    // Pega a primeira planilha
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+
+    // Converte para JSON
+    const dados = XLSX.utils.sheet_to_json(worksheet);
+
+    if (dados.length === 0) {
+      throw new Error('O arquivo XLSX está vazio ou não contém dados válidos');
+    }
+
+    const transacoes = [];
+
+    for (const row of dados) {
+      // Normaliza nomes das colunas (case-insensitive e trim)
+      const rowNormalizada = {};
+      for (const [key, value] of Object.entries(row)) {
+        const keyNormalizada = key.toLowerCase().trim()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, ''); // Remove acentos
+        rowNormalizada[keyNormalizada] = value;
+      }
+
+      // Busca os campos com nomes flexíveis
+      const data = rowNormalizada.data || rowNormalizada.date;
+      const estabelecimento = rowNormalizada.estabelecimento || rowNormalizada.merchant || rowNormalizada.loja;
+      const descricao = rowNormalizada.descricao || rowNormalizada.description || rowNormalizada.historico;
+      const categoria = rowNormalizada.categoria || rowNormalizada.category;
+      const conta = rowNormalizada.conta || rowNormalizada.account || rowNormalizada.banco;
+      const valorRaw = rowNormalizada.valor || rowNormalizada.value || rowNormalizada.amount;
+
+      // Valida campos obrigatórios
+      if (!data || valorRaw === undefined || valorRaw === null) {
+        continue; // Pula linhas sem data ou valor
+      }
+
+      // Processa o valor
+      let valorStr = valorRaw.toString().trim();
+      // Remove símbolos de moeda e espaços
+      valorStr = valorStr.replace(/[R$\s]/g, '');
+      // Substitui vírgula por ponto
+      valorStr = valorStr.replace(',', '.');
+      const valor = parseFloat(valorStr);
+
+      if (isNaN(valor)) {
+        continue; // Pula linhas com valor inválido
+      }
+
+      // Determina tipo baseado no sinal do valor
+      const tipo = valor >= 0 ? 'receita' : 'despesa';
+      const valorAbsoluto = Math.abs(valor);
+
+      // Monta a descrição final
+      let descricaoFinal = '';
+      if (estabelecimento && descricao) {
+        descricaoFinal = `${estabelecimento} - ${descricao}`;
+      } else if (estabelecimento) {
+        descricaoFinal = estabelecimento;
+      } else if (descricao) {
+        descricaoFinal = descricao;
+      } else {
+        descricaoFinal = 'Transação importada';
+      }
+
+      // Adiciona informação da conta se disponível
+      if (conta) {
+        descricaoFinal += ` [${conta}]`;
+      }
+
+      // Determina a categoria
+      let categoriaFinal = categoria || mapearCategoria(descricaoFinal);
+
+      // Formata a data
+      const dataFormatada = formatarData(data);
+
+      transacoes.push({
+        tipo,
+        valor: valorAbsoluto,
+        data: dataFormatada,
+        categoria: categoriaFinal,
+        descricao: descricaoFinal,
+        conta: conta || undefined,
+        status: 'confirmado'
+      });
+    }
+
+    if (transacoes.length === 0) {
+      throw new Error('Nenhuma transação válida encontrada no arquivo XLSX. Verifique se as colunas Data e Valor estão preenchidas.');
+    }
+
+    return transacoes;
+  } catch (erro) {
+    console.error('Erro ao parsear XLSX:', erro);
+    throw new Error(`Erro ao processar arquivo XLSX: ${erro.message}`);
+  }
+};
+
+/**
  * Importa arquivo e retorna transações processadas
  * @param {File} arquivo - Arquivo a ser importado
  * @returns {Promise<Array>} Array de transações
@@ -350,20 +458,21 @@ data,valor,descricao
 export const importarArquivo = async (arquivo) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    const nomeArquivo = arquivo.name.toLowerCase();
 
     reader.onload = async (e) => {
       try {
         const conteudo = e.target.result;
-        const nomeArquivo = arquivo.name.toLowerCase();
-
         let transacoes = [];
 
         if (nomeArquivo.endsWith('.ofx')) {
           transacoes = await parseOFX(conteudo);
         } else if (nomeArquivo.endsWith('.csv')) {
           transacoes = await parseCSV(conteudo);
+        } else if (nomeArquivo.endsWith('.xlsx') || nomeArquivo.endsWith('.xls')) {
+          transacoes = await parseXLSX(conteudo);
         } else {
-          reject(new Error('Formato de arquivo não suportado. Use .ofx ou .csv'));
+          reject(new Error('Formato de arquivo não suportado. Use .ofx, .csv, .xlsx ou .xls'));
           return;
         }
 
@@ -377,6 +486,11 @@ export const importarArquivo = async (arquivo) => {
       reject(new Error('Erro ao ler o arquivo'));
     };
 
-    reader.readAsText(arquivo);
+    // Para XLSX, ler como ArrayBuffer; para outros, como texto
+    if (nomeArquivo.endsWith('.xlsx') || nomeArquivo.endsWith('.xls')) {
+      reader.readAsArrayBuffer(arquivo);
+    } else {
+      reader.readAsText(arquivo);
+    }
   });
 };
