@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, query, where, orderBy, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 // 🔥 CONFIGURAÇÃO DO FIREBASE
@@ -28,21 +28,10 @@ const googleProvider = new GoogleAuthProvider();
 // 🔐 FUNÇÕES DE AUTENTICAÇÃO
 export const loginComGoogle = async () => {
   try {
-    await signInWithRedirect(auth, googleProvider);
-    // O resultado será capturado após o redirect usando getRedirectResult
+    const result = await signInWithPopup(auth, googleProvider);
+    return result.user;
   } catch (error) {
     console.error("Erro ao fazer login com Google:", error);
-    throw error;
-  }
-};
-
-// Função para capturar o resultado do redirect após login com Google
-export const verificarRedirectLogin = async () => {
-  try {
-    const result = await getRedirectResult(auth);
-    return result?.user || null;
-  } catch (error) {
-    console.error("Erro ao verificar redirect:", error);
     throw error;
   }
 };
@@ -151,6 +140,15 @@ export const observarCartoes = (userId, callback) => {
   });
 };
 
+export const deletarCartao = async (userId, cartaoId) => {
+  try {
+    await deleteDoc(doc(db, 'users', userId, 'cartoes', cartaoId.toString()));
+  } catch (error) {
+    console.error("Erro ao deletar cartão:", error);
+    throw error;
+  }
+};
+
 // 💸 FUNÇÕES DE DATABASE (TRANSAÇÕES)
 export const salvarTransacao = async (userId, transacao) => {
   try {
@@ -231,6 +229,126 @@ export const observarFaturas = (userId, callback) => {
     const faturas = snapshot.docs.map(doc => doc.data());
     callback(faturas);
   });
+};
+
+// 🎯 FUNÇÕES DE DATABASE (METAS)
+export const salvarMeta = async (userId, meta) => {
+  try {
+    const metaRef = doc(db, 'users', userId, 'metas', meta.id.toString());
+    await setDoc(metaRef, meta);
+    return meta;
+  } catch (error) {
+    console.error("Erro ao salvar meta:", error);
+    throw error;
+  }
+};
+
+export const buscarMetas = async (userId) => {
+  try {
+    const metasRef = collection(db, 'users', userId, 'metas');
+    const snapshot = await getDocs(metasRef);
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.error("Erro ao buscar metas:", error);
+    return [];
+  }
+};
+
+export const observarMetas = (userId, callback) => {
+  const metasRef = collection(db, 'users', userId, 'metas');
+  return onSnapshot(metasRef, (snapshot) => {
+    const metas = snapshot.docs.map(doc => doc.data());
+    callback(metas);
+  });
+};
+
+export const deletarMeta = async (userId, metaId) => {
+  try {
+    await deleteDoc(doc(db, 'users', userId, 'metas', metaId.toString()));
+  } catch (error) {
+    console.error("Erro ao deletar meta:", error);
+    throw error;
+  }
+};
+
+// 💰 FUNÇÕES DE DATABASE (ORÇAMENTOS)
+export const salvarOrcamento = async (userId, orcamento) => {
+  try {
+    const orcamentoRef = doc(db, 'users', userId, 'orcamentos', orcamento.id.toString());
+    await setDoc(orcamentoRef, orcamento);
+    return orcamento;
+  } catch (error) {
+    console.error("Erro ao salvar orçamento:", error);
+    throw error;
+  }
+};
+
+export const buscarOrcamentos = async (userId) => {
+  try {
+    const orcamentosRef = collection(db, 'users', userId, 'orcamentos');
+    const snapshot = await getDocs(orcamentosRef);
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.error("Erro ao buscar orçamentos:", error);
+    return [];
+  }
+};
+
+export const observarOrcamentos = (userId, callback) => {
+  const orcamentosRef = collection(db, 'users', userId, 'orcamentos');
+  return onSnapshot(orcamentosRef, (snapshot) => {
+    const orcamentos = snapshot.docs.map(doc => doc.data());
+    callback(orcamentos);
+  });
+};
+
+export const deletarOrcamento = async (userId, orcamentoId) => {
+  try {
+    await deleteDoc(doc(db, 'users', userId, 'orcamentos', orcamentoId.toString()));
+  } catch (error) {
+    console.error("Erro ao deletar orçamento:", error);
+    throw error;
+  }
+};
+
+// 🔄 FUNÇÕES DE DATABASE (DESPESAS RECORRENTES)
+export const salvarDespesaRecorrente = async (userId, despesa) => {
+  try {
+    const despesaRef = doc(db, 'users', userId, 'despesasRecorrentes', despesa.id.toString());
+    await setDoc(despesaRef, despesa);
+    return despesa;
+  } catch (error) {
+    console.error("Erro ao salvar despesa recorrente:", error);
+    throw error;
+  }
+};
+
+export const buscarDespesasRecorrentes = async (userId) => {
+  try {
+    const despesasRef = collection(db, 'users', userId, 'despesasRecorrentes');
+    const snapshot = await getDocs(despesasRef);
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.error("Erro ao buscar despesas recorrentes:", error);
+    return [];
+  }
+};
+
+export const observarDespesasRecorrentes = (userId, callback) => {
+  const despesasRef = collection(db, 'users', userId, 'despesasRecorrentes');
+  return onSnapshot(despesasRef, (snapshot) => {
+    const despesas = snapshot.docs.map(doc => doc.data());
+    callback(despesas);
+  });
+};
+
+export const deletarDespesaRecorrente = async (userId, despesaId) => {
+  try {
+    await deleteDoc(doc(db, 'users', userId, 'despesasRecorrentes', despesaId.toString()));
+  } catch (error) {
+    console.error("Erro ao deletar despesa recorrente:", error);
+    throw error;
+  }
 };
 
 export { auth, db };
