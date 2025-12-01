@@ -13,12 +13,10 @@ import {
   salvarFatura,
   deletarConta,
   deletarTransacao,
-  deletarCartao
+  deletarCartao,
   salvarMeta,
   salvarOrcamento,
   salvarDespesaRecorrente,
-  deletarConta,
-  deletarCartao,
   deletarMeta,
   deletarOrcamento,
   deletarDespesaRecorrente
@@ -164,10 +162,6 @@ export const useFirebaseData = (userId) => {
 
   const removerTransacao = async (transacaoId) => {
     await deletarTransacao(userId, transacaoId);
-  };
-
-  const removerCartao = async (cartaoId) => {
-    await deletarCartao(userId, cartaoId);
   };
 
   const adicionarFatura = async (fatura) => {

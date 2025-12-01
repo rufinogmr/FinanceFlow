@@ -191,15 +191,6 @@ export const deletarTransacao = async (userId, transacaoId) => {
   }
 };
 
-export const deletarCartao = async (userId, cartaoId) => {
-  try {
-    await deleteDoc(doc(db, 'users', userId, 'cartoes', cartaoId.toString()));
-  } catch (error) {
-    console.error("Erro ao deletar cartão:", error);
-    throw error;
-  }
-};
-
 // 🧾 FUNÇÕES DE DATABASE (FATURAS)
 export const salvarFatura = async (userId, fatura) => {
   try {
