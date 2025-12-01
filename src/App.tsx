@@ -105,6 +105,7 @@ const MainApp = ({ user }) => {
 
   const [modalAberto, setModalAberto] = useState(false);
   const [tipoModal, setTipoModal] = useState('');
+  const [contextoModal, setContextoModal] = useState(''); // 'conta' ou 'cartao'
   const [formData, setFormData] = useState({});
   const [transacaoSelecionada, setTransacaoSelecionada] = useState(null);
   const [modalPagamento, setModalPagamento] = useState(null);
@@ -1420,17 +1421,34 @@ const MainApp = ({ user }) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Cartões de Crédito</h2>
-        <button
-          onClick={() => {
-            setTipoModal('cartao');
-            setFormData({});
-            setModalAberto(true);
-          }}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
-        >
-          <Plus size={16} />
-          Novo Cartão
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setTipoModal('transacao');
+              setContextoModal('cartao');
+              setFormData({
+                tipo: 'despesa',
+                cartaoId: cartoes[0]?.id
+              });
+              setModalAberto(true);
+            }}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm font-medium"
+          >
+            <Plus size={16} />
+            Nova Compra
+          </button>
+          <button
+            onClick={() => {
+              setTipoModal('cartao');
+              setFormData({});
+              setModalAberto(true);
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
+          >
+            <Plus size={16} />
+            Novo Cartão
+          </button>
+        </div>
       </div>
 
       {cartoes.map(cartao => {
@@ -2197,7 +2215,8 @@ const MainApp = ({ user }) => {
                 <button
                   onClick={() => {
                     setTipoModal('transacao');
-                    setFormData({});
+                    setContextoModal('conta');
+                    setFormData({ contaId: contas[0]?.id });
                     setModalAberto(true);
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
@@ -3125,9 +3144,11 @@ const MainApp = ({ user }) => {
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
           <h3 className="text-xl font-bold text-gray-900 mb-4">
-            {tipoModal === 'transacao' && 'Nova Transação'}
-            {tipoModal === 'conta' && (formData.id ? 'Editar Conta' : 'Nova Conta')}
-            {tipoModal === 'cartao' && (formData.id ? 'Editar Cartão' : 'Novo Cartão')}
+            {tipoModal === 'transacao' && contextoModal === 'cartao' && 'Nova Compra no Cartão'}
+            {tipoModal === 'transacao' && contextoModal === 'conta' && 'Nova Transação'}
+            {tipoModal === 'transacao' && !contextoModal && 'Nova Transação'}
+            {tipoModal === 'conta' && 'Nova Conta'}
+            {tipoModal === 'cartao' && 'Novo Cartão'}
             {tipoModal === 'meta' && 'Nova Meta de Economia'}
             {tipoModal === 'orcamento' && 'Novo Orçamento'}
             {tipoModal === 'despesaRecorrente' && 'Nova Despesa Recorrente'}
@@ -3135,18 +3156,30 @@ const MainApp = ({ user }) => {
 
           {tipoModal === 'transacao' && (
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  value={formData.tipo || ''}
-                  onChange={(e) => setFormData({...formData, tipo: e.target.value})}
-                >
-                  <option value="">Selecione</option>
-                  <option value="receita">Receita</option>
-                  <option value="despesa">Despesa</option>
-                </select>
-              </div>
+              {/* Mostrar campo Tipo apenas se NÃO for contexto de cartão */}
+              {contextoModal !== 'cartao' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={formData.tipo || ''}
+                    onChange={(e) => setFormData({...formData, tipo: e.target.value})}
+                  >
+                    <option value="">Selecione</option>
+                    <option value="receita">Receita</option>
+                    <option value="despesa">Despesa</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Mostrar aviso se for cartão */}
+              {contextoModal === 'cartao' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-800">
+                    <strong>Compra no cartão de crédito</strong> - Será lançada como despesa na fatura
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
@@ -3319,7 +3352,7 @@ const MainApp = ({ user }) => {
                     </label>
 
                     {formData.parcelado && (
-                      <div className="ml-6">
+                      <div>
                         <input
                           type="number"
                           min="2"
@@ -3761,7 +3794,10 @@ const MainApp = ({ user }) => {
                   }
                   else if (tipoModal === 'transacao') {
                     // Validar campos obrigatórios
-                    if (!formData.tipo || !formData.descricao || !formData.valor || !formData.data || !formData.categoria) {
+                    // Se for contexto de cartão, o tipo é sempre 'despesa' e não precisa validar
+                    const tipoFinal = contextoModal === 'cartao' ? 'despesa' : formData.tipo;
+
+                    if (!tipoFinal || !formData.descricao || !formData.valor || !formData.data || !formData.categoria) {
                       alert('Por favor, preencha todos os campos obrigatórios (Tipo, Descrição, Valor, Data e Categoria)');
                       return;
                     }
@@ -3771,9 +3807,15 @@ const MainApp = ({ user }) => {
                       return;
                     }
 
+                    // VALIDAÇÃO IMPORTANTE: Não permitir receita com cartão de crédito
+                    if (formData.cartaoId && tipoFinal === 'receita') {
+                      alert('❌ Erro: Não é possível ter uma RECEITA em cartão de crédito! Cartões só podem ter DESPESAS.');
+                      return;
+                    }
+
                     const novaTransacao = {
                       id: Date.now(),
-                      tipo: formData.tipo,
+                      tipo: tipoFinal, // Usar tipoFinal para garantir que seja 'despesa' quando for cartão
                       descricao: formData.descricao,
                       valor: parseFloat(formData.valor),
                       data: formData.data,
