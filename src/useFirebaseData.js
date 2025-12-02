@@ -11,6 +11,7 @@ import {
   salvarCartao,
   salvarTransacao,
   salvarFatura,
+  deletarFatura,
   deletarConta,
   deletarTransacao,
   deletarCartao,
@@ -172,6 +173,10 @@ export const useFirebaseData = (userId) => {
     await salvarFatura(userId, fatura);
   };
 
+  const removerFatura = async (faturaId) => {
+    await deletarFatura(userId, faturaId);
+  };
+
   const adicionarMeta = async (meta) => {
     await salvarMeta(userId, meta);
   };
@@ -229,6 +234,7 @@ export const useFirebaseData = (userId) => {
     adicionarFatura,
     adicionarFatura, // Já estava aqui
     atualizarFatura,
+    removerFatura,
     adicionarMeta,
     atualizarMeta,
     removerMeta,

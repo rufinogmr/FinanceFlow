@@ -222,6 +222,15 @@ export const observarFaturas = (userId, callback) => {
   });
 };
 
+export const deletarFatura = async (userId, faturaId) => {
+  try {
+    await deleteDoc(doc(db, 'users', userId, 'faturas', faturaId.toString()));
+  } catch (error) {
+    console.error("Erro ao deletar fatura:", error);
+    throw error;
+  }
+};
+
 // 🎯 FUNÇÕES DE DATABASE (METAS)
 export const salvarMeta = async (userId, meta) => {
   try {
