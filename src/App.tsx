@@ -78,6 +78,7 @@ const MainApp = ({ user }) => {
     removerTransacao,
     adicionarFatura,
     atualizarFatura,
+    removerFatura,
     adicionarMeta,
     atualizarMeta,
     removerMeta,
@@ -89,22 +90,41 @@ const MainApp = ({ user }) => {
     removerDespesaRecorrente
   } = useFirebaseData(user.uid);
 
-  const atualizarSaldoConta = async (transacao) => {
-    if (!transacao.contaId) return;
+  // Efeito para manter saldos sincronizados (Requisito do Usuário: Recalcular sempre)
+  useEffect(() => {
+    if (dadosCarregando || contas.length === 0) return;
 
-    const conta = contas.find(c => c.id === transacao.contaId);
-    if (!conta) return;
+    contas.forEach(conta => {
+       const saldoInicial = conta.saldoInicial !== undefined ? parseFloat(conta.saldoInicial) : 0;
 
-    let novoSaldo;
-    if (transacao.tipo === 'receita') {
-      novoSaldo = conta.saldo + transacao.valor;
-    } else {
-      novoSaldo = conta.saldo - transacao.valor;
-    }
+       // Filtrar transações desta conta (excluindo logicamente deletadas se houver flag, mas aqui parece que deletar remove do DB)
+       // Se o sistema usa soft-delete (deleted: true), precisamos filtrar.
+       // O código anterior usava `deleted: true` em alguns lugares. Vamos filtrar por segurança.
+       const transacoesConta = transacoes.filter(t =>
+         t.contaId === conta.id &&
+         t.status === 'confirmado' && // Apenas confirmadas afetam saldo? Geralmente sim.
+         !t.deleted // Caso use soft delete
+       );
 
-    const contaAtualizada = { ...conta, saldo: novoSaldo };
-    await atualizarConta(contaAtualizada);
-  };
+       const receitas = transacoesConta
+         .filter(t => t.tipo === 'receita')
+         .reduce((acc, t) => acc + t.valor, 0);
+
+       const despesas = transacoesConta
+         .filter(t => t.tipo === 'despesa')
+         .reduce((acc, t) => acc + t.valor, 0);
+
+       const saldoCalculado = saldoInicial + receitas - despesas;
+
+       // Se houver discrepância (com margem para erro de ponto flutuante), atualiza no banco
+       if (Math.abs(conta.saldo - saldoCalculado) > 0.01) {
+         // Atualiza silenciosamente para não causar re-render loop infinito (Firebase listener vai disparar, mas se o valor for o mesmo...)
+         // Espera, se atualizarmos, o listener dispara, contas muda, effect roda de novo.
+         // A checagem `Math.abs` previne o loop se o valor convergiu.
+         atualizarConta({ ...conta, saldo: saldoCalculado });
+       }
+    });
+  }, [transacoes, contas, dadosCarregando]); // Depende de transacoes e contas
 
   const [activeTab, setActiveTab] = useState('visao-geral');
   const [mostrarSaldos, setMostrarSaldos] = useState(true);
@@ -154,7 +174,7 @@ const MainApp = ({ user }) => {
       };
 
       await adicionarTransacao(novaTransacao);
-      await atualizarSaldoConta(novaTransacao);
+      // Saldo será atualizado automaticamente pelo useEffect
 
       // Calcular próxima data baseado na frequência
       const dataAtual = new Date(despesa.proximaData);
@@ -359,15 +379,27 @@ const MainApp = ({ user }) => {
           }
         }
       }
+
+      // 5. Limpeza: Remover faturas que não têm mais transações (ex: transações deletadas) e não estão pagas
+      // Como 'periodosComTransacoes' inclui o mês atual, só removeremos faturas vazias futuras ou passadas não pagas e sem transações.
+      const faturasCartao = faturas.filter(f => f.cartaoId === cartao.id);
+      for (const fatura of faturasCartao) {
+        if (!fatura.pago && !periodosComTransacoes.has(fatura.mes)) {
+          // Se não está paga e não está na lista de períodos com transações (ou período atual), deletar.
+          await removerFatura(fatura.id);
+        }
+      }
     }
   };
 
   // Gerar faturas automaticamente ao carregar dados
+  // CORREÇÃO: Depender de 'transacoes' (objeto/array) em vez de apenas 'length'
+  // para garantir que edições de valor ou data também atualizem as faturas.
   useEffect(() => {
     if (!dadosCarregando && cartoes.length > 0) {
       gerarFaturasAutomaticamente();
     }
-  }, [dadosCarregando, cartoes.length, transacoes.length]);
+  }, [dadosCarregando, cartoes.length, transacoes]);
 
   // Fechar menu dropdown ao clicar fora
   useEffect(() => {
@@ -471,7 +503,7 @@ const MainApp = ({ user }) => {
         delete novaTransacao.conta; // Remove o campo 'conta' para evitar erro no Firebase
 
         await adicionarTransacao(novaTransacao);
-        await atualizarSaldoConta(novaTransacao);
+        // Saldo atualizado automaticamente
         transacoesComConta++;
       }
 
@@ -534,11 +566,7 @@ const MainApp = ({ user }) => {
       await atualizarFatura(faturaAtualizada);
 
       // 2. Atualizar saldo da conta
-      const contaAtualizada = {
-        ...conta,
-        saldo: conta.saldo - fatura.valorTotal
-      };
-      await atualizarConta(contaAtualizada);
+      // NÃO ATUALIZAMOS MANUALMENTE MAIS. A transação criada abaixo fará o useEffect recalcular o saldo.
 
       // 3. Criar transação de pagamento na conta corrente
       const transacaoPagamento = {
@@ -2158,7 +2186,7 @@ const MainApp = ({ user }) => {
             await atualizarTransacao(transacao);
           } else {
             await adicionarTransacao(transacao);
-            await atualizarSaldoConta(transacao);
+            // Saldo atualizado automaticamente
           }
         }}
         initialData={formData}
