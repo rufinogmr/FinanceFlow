@@ -78,6 +78,7 @@ const MainApp = ({ user }) => {
     removerTransacao,
     adicionarFatura,
     atualizarFatura,
+    removerFatura,
     adicionarMeta,
     atualizarMeta,
     removerMeta,
@@ -376,6 +377,16 @@ const MainApp = ({ user }) => {
               status: statusAtualizado
             });
           }
+        }
+      }
+
+      // 5. Limpeza: Remover faturas que não têm mais transações (ex: transações deletadas) e não estão pagas
+      // Como 'periodosComTransacoes' inclui o mês atual, só removeremos faturas vazias futuras ou passadas não pagas e sem transações.
+      const faturasCartao = faturas.filter(f => f.cartaoId === cartao.id);
+      for (const fatura of faturasCartao) {
+        if (!fatura.pago && !periodosComTransacoes.has(fatura.mes)) {
+          // Se não está paga e não está na lista de períodos com transações (ou período atual), deletar.
+          await removerFatura(fatura.id);
         }
       }
     }
