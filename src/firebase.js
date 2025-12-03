@@ -153,7 +153,9 @@ export const deletarCartao = async (userId, cartaoId) => {
 export const salvarTransacao = async (userId, transacao) => {
   try {
     const transacaoRef = doc(db, 'users', userId, 'transacoes', transacao.id.toString());
+    console.log('🔍 Salvando transação:', { id: transacao.id, deleted: transacao.deleted, descricao: transacao.descricao });
     await setDoc(transacaoRef, transacao);
+    console.log('✅ Transação salva com sucesso');
     return transacao;
   } catch (error) {
     console.error("Erro ao salvar transação:", error);
