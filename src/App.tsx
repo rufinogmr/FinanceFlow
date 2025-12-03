@@ -97,13 +97,15 @@ const MainApp = ({ user }) => {
     contas.forEach(conta => {
        const saldoInicial = conta.saldoInicial !== undefined ? parseFloat(conta.saldoInicial) : 0;
 
-       // Filtrar transações desta conta (excluindo logicamente deletadas se houver flag, mas aqui parece que deletar remove do DB)
-       // Se o sistema usa soft-delete (deleted: true), precisamos filtrar.
-       // O código anterior usava `deleted: true` em alguns lugares. Vamos filtrar por segurança.
+       // CORREÇÃO: Filtrar transações desta conta
+       // ✅ Apenas transações com contaId E SEM cartaoId afetam o saldo
+       // ✅ Transações de cartão (com cartaoId) NÃO afetam o saldo da conta
+       // ✅ Pagamentos de fatura (contaId + cartaoId: null) SIM afetam o saldo
        const transacoesConta = transacoes.filter(t =>
          t.contaId === conta.id &&
-         t.status === 'confirmado' && // Apenas confirmadas afetam saldo? Geralmente sim.
-         !t.deleted // Caso use soft delete
+         !t.cartaoId && // ✅ EXCLUIR transações de cartão de crédito
+         t.status === 'confirmado' &&
+         !t.deleted
        );
 
        const receitas = transacoesConta
@@ -118,9 +120,6 @@ const MainApp = ({ user }) => {
 
        // Se houver discrepância (com margem para erro de ponto flutuante), atualiza no banco
        if (Math.abs(conta.saldo - saldoCalculado) > 0.01) {
-         // Atualiza silenciosamente para não causar re-render loop infinito (Firebase listener vai disparar, mas se o valor for o mesmo...)
-         // Espera, se atualizarmos, o listener dispara, contas muda, effect roda de novo.
-         // A checagem `Math.abs` previne o loop se o valor convergiu.
          atualizarConta({ ...conta, saldo: saldoCalculado });
        }
     });
@@ -294,13 +293,16 @@ const MainApp = ({ user }) => {
     const transacoesCartao = transacoes.filter(t => {
       if (t.cartaoId !== cartaoId) return false;
       if (t.categoria === 'Fatura Cartão') return false; // Não incluir pagamentos de fatura
+      if (t.deleted) return false; // CORREÇÃO: Não incluir transações deletadas
 
       const dataT = t.data;
       return dataT >= periodo.dataInicio && dataT <= periodo.dataFim;
     });
 
     return transacoesCartao.reduce((acc, t) => {
-      if (t.parcelamento) return acc + t.parcelamento.valorParcela;
+      // CORREÇÃO: Para transações parceladas, o valor já está correto em t.valor
+      // pois cada parcela é criada com o valor individual da parcela
+      // O campo parcelamento.valorParcela é apenas informativo
       return acc + t.valor;
     }, 0);
   };
@@ -313,7 +315,9 @@ const MainApp = ({ user }) => {
     for (const cartao of cartoes) {
       // 1. Obter todas as transações do cartão
       const transacoesCartao = transacoes.filter(t =>
-        t.cartaoId === cartao.id && t.categoria !== 'Fatura Cartão'
+        t.cartaoId === cartao.id &&
+        t.categoria !== 'Fatura Cartão' &&
+        !t.deleted
       );
 
       // 2. Identificar todos os períodos únicos (meses de referência) das transações
@@ -417,14 +421,33 @@ const MainApp = ({ user }) => {
 
   // Cálculos
   const saldoTotal = contas.reduce((acc, c) => acc + c.saldo, 0);
-  
+
+  // CORREÇÃO: Usar mês atual em vez de mês fixo (9 = outubro)
+  const mesAtual = new Date().getMonth();
+  const anoAtual = new Date().getFullYear();
+
   const receitasMes = transacoes
-    .filter(t => t.tipo === 'receita' && new Date(t.data).getMonth() === 9 && t.status === 'confirmado')
+    .filter(t => {
+      const dataT = new Date(t.data);
+      return t.tipo === 'receita' &&
+             dataT.getMonth() === mesAtual &&
+             dataT.getFullYear() === anoAtual &&
+             t.status === 'confirmado' &&
+             !t.deleted;
+    })
     .reduce((acc, t) => acc + t.valor, 0);
 
   const despesasMes = transacoes
-    .filter(t => t.tipo === 'despesa' && new Date(t.data).getMonth() === 9 && (t.status === 'confirmado' || t.status === 'agendado'))
+    .filter(t => {
+      const dataT = new Date(t.data);
+      return t.tipo === 'despesa' &&
+             dataT.getMonth() === mesAtual &&
+             dataT.getFullYear() === anoAtual &&
+             (t.status === 'confirmado' || t.status === 'agendado') &&
+             !t.deleted;
+    })
     .reduce((acc, t) => {
+      // CORREÇÃO: Se tiver parcelamento, usar valorParcela; senão usar valor
       if (t.parcelamento) return acc + t.parcelamento.valorParcela;
       return acc + t.valor;
     }, 0);
@@ -738,7 +761,7 @@ const MainApp = ({ user }) => {
                 </div>
                 <div className="text-right">
                   <p className={`font-semibold ${t.tipo === 'receita' ? 'text-green-600' : 'text-gray-900'}`}>
-                    {t.tipo === 'receita' ? '+' : '-'} R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {t.tipo === 'receita' ? '+' : '-'} R$ {t.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </p>
                   <span className={`text-xs px-2 py-1 rounded ${
                     t.status === 'confirmado' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
@@ -756,12 +779,13 @@ const MainApp = ({ user }) => {
       {(() => {
         const tagAnalysis = {};
         transacoes.forEach(t => {
-          if (t.tags && t.tags.length > 0 && t.status === 'confirmado') {
+          if (t.tags && t.tags.length > 0 && t.status === 'confirmado' && !t.deleted) {
             t.tags.forEach(tag => {
               if (!tagAnalysis[tag]) {
                 tagAnalysis[tag] = { receitas: 0, despesas: 0, count: 0 };
               }
-              const valor = t.parcelamento ? t.parcelamento.valorParcela : t.valor;
+              // CORREÇÃO: Usar sempre t.valor
+              const valor = t.valor;
               if (t.tipo === 'receita') {
                 tagAnalysis[tag].receitas += valor;
               } else {
@@ -841,7 +865,8 @@ const MainApp = ({ user }) => {
           const transacoesMeta = transacoes.filter(t =>
             t.tags && t.tags.some(tag => meta.tags && meta.tags.includes(tag)) &&
             t.tipo === 'receita' &&
-            t.status === 'confirmado'
+            t.status === 'confirmado' &&
+            !t.deleted
           );
           const valorAtual = transacoesMeta.reduce((acc, t) => acc + t.valor, 0);
           return { valorAtual, percentual: (valorAtual / meta.valorAlvo) * 100 };
@@ -905,11 +930,12 @@ const MainApp = ({ user }) => {
           .filter(t =>
             t.tipo === 'despesa' &&
             t.data.startsWith(mesAtual) &&
-            (t.status === 'confirmado' || t.status === 'agendado')
+            (t.status === 'confirmado' || t.status === 'agendado') &&
+            !t.deleted
           )
           .forEach(t => {
-            const valor = t.parcelamento ? t.parcelamento.valorParcela : t.valor;
-            gastosPorCategoria[t.categoria] = (gastosPorCategoria[t.categoria] || 0) + valor;
+            // CORREÇÃO: Usar sempre t.valor, pois cada parcela já tem o valor correto
+            gastosPorCategoria[t.categoria] = (gastosPorCategoria[t.categoria] || 0) + t.valor;
           });
 
         const orcamentosComAlerta = orcamentos.filter(orc => {
@@ -1121,7 +1147,8 @@ const MainApp = ({ user }) => {
       const transacoesMeta = transacoes.filter(t =>
         t.tags && t.tags.some(tag => meta.tags && meta.tags.includes(tag)) &&
         t.tipo === 'receita' &&
-        t.status === 'confirmado'
+        t.status === 'confirmado' &&
+        !t.deleted
       );
       const valorAtual = transacoesMeta.reduce((acc, t) => acc + t.valor, 0);
       return { valorAtual, percentual: (valorAtual / meta.valorAlvo) * 100 };
@@ -1134,11 +1161,12 @@ const MainApp = ({ user }) => {
         .filter(t =>
           t.tipo === 'despesa' &&
           t.data.startsWith(mesAtual) &&
-          (t.status === 'confirmado' || t.status === 'agendado')
+          (t.status === 'confirmado' || t.status === 'agendado') &&
+          !t.deleted
         )
         .forEach(t => {
-          const valor = t.parcelamento ? t.parcelamento.valorParcela : t.valor;
-          gastos[t.categoria] = (gastos[t.categoria] || 0) + valor;
+          // CORREÇÃO: Usar sempre t.valor, pois cada parcela já tem o valor correto
+          gastos[t.categoria] = (gastos[t.categoria] || 0) + t.valor;
         });
       return gastos;
     };
@@ -1735,8 +1763,12 @@ const MainApp = ({ user }) => {
   const renderModalDetalhesConta = () => {
     if (!contaSelecionada) return null;
 
-    // Filtrar transações da conta
-    const transacoesConta = transacoes.filter(t => t.contaId === contaSelecionada.id);
+    // Filtrar transações da conta (excluir deletadas e transações de cartão)
+    const transacoesConta = transacoes.filter(t =>
+      t.contaId === contaSelecionada.id &&
+      !t.cartaoId &&
+      !t.deleted
+    );
 
     // Ordenar por data (mais recente primeiro)
     const transacoesOrdenadas = [...transacoesConta].sort((a, b) =>

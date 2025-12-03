@@ -202,13 +202,17 @@ const ContasCartoes = ({
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {cartoes.map(cartao => {
-              // CORRECTION: Calculate used limit based on ALL unpaid invoices (Total Debt)
+              // CORREÇÃO: Calcular limite usado baseado em TODAS as faturas não pagas (Dívida Total)
               const faturasCartao = faturas.filter(f => f.cartaoId === cartao.id);
               const totalDivida = faturasCartao
                 .filter(f => !f.pago)
                 .reduce((acc, f) => acc + f.valorTotal, 0);
 
-              const faturaAtual = faturasCartao.find(f => !f.pago); // Just for display "Fatura Aberta" context if needed
+              // Buscar fatura atual (próxima a vencer)
+              const faturasAbertas = faturasCartao
+                .filter(f => !f.pago)
+                .sort((a, b) => new Date(a.dataVencimento) - new Date(b.dataVencimento));
+              const faturaAtual = faturasAbertas[0]; // Próxima a vencer
 
               const percentualUsado = (totalDivida / cartao.limite) * 100;
               const expandido = expandedCard === `cartao-${cartao.id}`;
@@ -346,9 +350,9 @@ const ContasCartoes = ({
                         <div className="max-h-64 overflow-y-auto">
                           {secaoExpandida === 'compras' ? (
                             (() => {
-                              // Mostrar ultimas 10 compras do cartao
+                              // Mostrar ultimas 10 compras do cartao (excluir deletadas)
                               const compras = transacoes
-                                .filter(t => t.cartaoId === cartao.id)
+                                .filter(t => t.cartaoId === cartao.id && !t.deleted)
                                 .sort((a, b) => new Date(b.data) - new Date(a.data))
                                 .slice(0, 10);
 
@@ -367,7 +371,7 @@ const ContasCartoes = ({
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <p className="font-semibold text-gray-900">
-                                      R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      R$ {t.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                     </p>
                                     {/* Edit/Delete handlers usually in modal or global, simplifying here */}
                                   </div>
@@ -503,6 +507,9 @@ const ContasCartoes = ({
         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
           {(() => {
             const transacoesFiltradas = transacoes.filter(t => {
+              // Filtrar transações deletadas
+              if (t.deleted) return false;
+
               let passaTipo = true;
               if (filtroTransacoes === 'receitas') passaTipo = t.tipo === 'receita';
               if (filtroTransacoes === 'despesas') passaTipo = t.tipo === 'despesa';
@@ -552,7 +559,7 @@ const ContasCartoes = ({
                       </div>
                       <div className="flex items-center gap-2">
                         <p className={`font-semibold text-sm ${t.tipo === 'receita' ? 'text-green-600' : 'text-gray-900'}`}>
-                          {t.tipo === 'receita' ? '+' : '-'} R$ {(t.parcelamento ? t.parcelamento.valorParcela : t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          {t.tipo === 'receita' ? '+' : '-'} R$ {t.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </p>
                         {!modoSelecao && (
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
