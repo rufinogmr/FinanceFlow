@@ -457,15 +457,17 @@ const MainApp = ({ user }) => {
 
   const exportarCSV = () => {
     const headers = ['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor', 'Conta/Cartão', 'Status'];
-    const rows = transacoes.map(t => [
-      t.data,
-      t.tipo,
-      t.categoria,
-      t.descricao,
-      t.valor,
-      t.contaId ? contas.find(c => c.id === t.contaId)?.nome : cartoes.find(c => c.id === t.cartaoId)?.nome,
-      t.status
-    ]);
+    const rows = transacoes
+      .filter(t => !t.deleted)
+      .map(t => [
+        t.data,
+        t.tipo,
+        t.categoria,
+        t.descricao,
+        t.valor,
+        t.contaId ? contas.find(c => c.id === t.contaId)?.nome : cartoes.find(c => c.id === t.cartaoId)?.nome,
+        t.status
+      ]);
 
     const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -736,7 +738,10 @@ const MainApp = ({ user }) => {
           </div>
         </div>
         <div className="divide-y divide-gray-200">
-          {transacoes.slice(0, 5).map(t => (
+          {transacoes
+            .filter(t => !t.deleted)
+            .slice(0, 5)
+            .map(t => (
             <div key={t.id} className="p-4 hover:bg-gray-50 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -1065,8 +1070,8 @@ const MainApp = ({ user }) => {
       conta.cartoesVinculados && conta.cartoesVinculados.includes(c.id)
     );
 
-    // Verificar se há transações vinculadas
-    const transacoesVinculadas = transacoes.filter(t => t.contaId === conta.id);
+    // Verificar se há transações vinculadas (excluir deletadas)
+    const transacoesVinculadas = transacoes.filter(t => t.contaId === conta.id && !t.deleted);
 
     let mensagemConfirmacao = `Deseja realmente excluir a conta "${conta.nome}"?\n\n`;
 
@@ -1105,8 +1110,8 @@ const MainApp = ({ user }) => {
     // Verificar se há faturas vinculadas
     const faturasVinculadas = faturas.filter(f => f.cartaoId === cartao.id);
 
-    // Verificar se há transações vinculadas
-    const transacoesVinculadas = transacoes.filter(t => t.cartaoId === cartao.id);
+    // Verificar se há transações vinculadas (excluir deletadas)
+    const transacoesVinculadas = transacoes.filter(t => t.cartaoId === cartao.id && !t.deleted);
 
     let mensagemConfirmacao = `Deseja realmente excluir o cartão "${cartao.nome}"?\n\n`;
 
