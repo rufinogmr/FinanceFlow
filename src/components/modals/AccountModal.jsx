@@ -72,13 +72,17 @@ const AccountModal = ({ isOpen, onClose, onSave, initialData }) => {
             <option value="corrente">Conta Corrente</option>
             <option value="poupanca">Poupança</option>
           </select>
-          <input
-            type="number"
-            placeholder="Saldo inicial"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            value={formData.saldo || ''}
-            onChange={(e) => setFormData({...formData, saldo: e.target.value})}
-          />
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500 ml-1">Saldo Inicial (Base para cálculo)</label>
+            <input
+              type="number"
+              step="0.01"
+              placeholder="Saldo inicial"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              value={formData.saldoInicial !== undefined ? formData.saldoInicial : (formData.saldo || '')}
+              onChange={(e) => setFormData({...formData, saldoInicial: e.target.value})}
+            />
+          </div>
         </div>
 
         <div className="flex gap-3 mt-6">

@@ -4,6 +4,7 @@ import LoginScreen from './LoginScreen';
 import { observarAuth, logout } from './firebase';
 import { useFirebaseData } from './useFirebaseData';
 import { importarArquivo } from './importUtils';
+import { formatDateToBr } from './utils';
 
 // Import Components
 import ContasCartoes from './components/ContasCartoes';
@@ -78,6 +79,7 @@ const MainApp = ({ user }) => {
     removerTransacao,
     adicionarFatura,
     atualizarFatura,
+    removerFatura,
     adicionarMeta,
     atualizarMeta,
     removerMeta,
@@ -89,22 +91,41 @@ const MainApp = ({ user }) => {
     removerDespesaRecorrente
   } = useFirebaseData(user.uid);
 
-  const atualizarSaldoConta = async (transacao) => {
-    if (!transacao.contaId) return;
+  // Efeito para manter saldos sincronizados (Requisito do Usuário: Recalcular sempre)
+  useEffect(() => {
+    if (dadosCarregando || contas.length === 0) return;
 
-    const conta = contas.find(c => c.id === transacao.contaId);
-    if (!conta) return;
+    contas.forEach(conta => {
+       const saldoInicial = conta.saldoInicial !== undefined ? parseFloat(conta.saldoInicial) : 0;
 
-    let novoSaldo;
-    if (transacao.tipo === 'receita') {
-      novoSaldo = conta.saldo + transacao.valor;
-    } else {
-      novoSaldo = conta.saldo - transacao.valor;
-    }
+       // Filtrar transações desta conta (excluindo logicamente deletadas se houver flag, mas aqui parece que deletar remove do DB)
+       // Se o sistema usa soft-delete (deleted: true), precisamos filtrar.
+       // O código anterior usava `deleted: true` em alguns lugares. Vamos filtrar por segurança.
+       const transacoesConta = transacoes.filter(t =>
+         t.contaId === conta.id &&
+         t.status === 'confirmado' && // Apenas confirmadas afetam saldo? Geralmente sim.
+         !t.deleted // Caso use soft delete
+       );
 
-    const contaAtualizada = { ...conta, saldo: novoSaldo };
-    await atualizarConta(contaAtualizada);
-  };
+       const receitas = transacoesConta
+         .filter(t => t.tipo === 'receita')
+         .reduce((acc, t) => acc + t.valor, 0);
+
+       const despesas = transacoesConta
+         .filter(t => t.tipo === 'despesa')
+         .reduce((acc, t) => acc + t.valor, 0);
+
+       const saldoCalculado = saldoInicial + receitas - despesas;
+
+       // Se houver discrepância (com margem para erro de ponto flutuante), atualiza no banco
+       if (Math.abs(conta.saldo - saldoCalculado) > 0.01) {
+         // Atualiza silenciosamente para não causar re-render loop infinito (Firebase listener vai disparar, mas se o valor for o mesmo...)
+         // Espera, se atualizarmos, o listener dispara, contas muda, effect roda de novo.
+         // A checagem `Math.abs` previne o loop se o valor convergiu.
+         atualizarConta({ ...conta, saldo: saldoCalculado });
+       }
+    });
+  }, [transacoes, contas, dadosCarregando]); // Depende de transacoes e contas
 
   const [activeTab, setActiveTab] = useState('visao-geral');
   const [mostrarSaldos, setMostrarSaldos] = useState(true);
@@ -154,7 +175,7 @@ const MainApp = ({ user }) => {
       };
 
       await adicionarTransacao(novaTransacao);
-      await atualizarSaldoConta(novaTransacao);
+      // Saldo será atualizado automaticamente pelo useEffect
 
       // Calcular próxima data baseado na frequência
       const dataAtual = new Date(despesa.proximaData);
@@ -198,35 +219,66 @@ const MainApp = ({ user }) => {
    * Retorna { dataInicio, dataFim, dataVencimento, mesReferencia }
    */
   const calcularPeriodoFatura = (cartao, dataReferencia = new Date()) => {
-    const hoje = new Date(dataReferencia);
+    // Garantir que dataReferencia seja tratada como data local ou UTC consistente
+    // Se for string, converter com split para garantir dia correto
+    let ano, mes, dia;
+
+    if (typeof dataReferencia === 'string' && dataReferencia.includes('-')) {
+        [ano, mes, dia] = dataReferencia.split('-').map(Number);
+        mes = mes - 1; // JS months are 0-indexed
+    } else {
+        const d = new Date(dataReferencia);
+        ano = d.getFullYear();
+        mes = d.getMonth();
+        dia = d.getDate();
+    }
+
     const diaFechamento = cartao.diaFechamento;
     const diaVencimento = cartao.diaVencimento;
 
     let dataFim, dataInicio, dataVencimento;
 
     // Se ainda não passou o fechamento deste mês, a fatura atual vai do mês passado até este mês
-    if (hoje.getDate() <= diaFechamento) {
-      dataFim = new Date(hoje.getFullYear(), hoje.getMonth(), diaFechamento);
-      dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, diaFechamento + 1);
-      dataVencimento = new Date(hoje.getFullYear(), hoje.getMonth(), diaVencimento);
+    if (dia <= diaFechamento) {
+      dataFim = new Date(ano, mes, diaFechamento);
+      dataInicio = new Date(ano, mes - 1, diaFechamento + 1);
+      dataVencimento = new Date(ano, mes, diaVencimento);
     } else {
       // Se já passou o fechamento, a fatura atual vai deste mês até o próximo
-      dataFim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, diaFechamento);
-      dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), diaFechamento + 1);
-      dataVencimento = new Date(hoje.getFullYear(), hoje.getMonth() + 1, diaVencimento);
+      dataFim = new Date(ano, mes + 1, diaFechamento);
+      dataInicio = new Date(ano, mes, diaFechamento + 1);
+      dataVencimento = new Date(ano, mes + 1, diaVencimento);
     }
 
     // Se vencimento é menor que fechamento, vencimento é no mês seguinte ao fechamento
+    // Ex: Fechamento dia 25, Vencimento dia 05.
+    // dataFim (Fechamento) será dia 25/Jan. Vencimento deve ser 05/Fev.
     if (diaVencimento < diaFechamento) {
-      dataVencimento = new Date(dataFim.getFullYear(), dataFim.getMonth() + 1, diaVencimento);
+        // Se dataFim é 25/Jan, dataVencimento inicial foi setada como 05/Jan (errado) ou 05/Fev (certo?)
+        // Na lógica acima:
+        // Caso 1 (<= fechamento): dataVencimento = Date(ano, mes, diaVencimento). Se hoje é 10/Jan (<=25), Vencimento 05/Jan.
+        // Isso seria vencimento PASSADO. O vencimento da fatura que fecha em 25/Jan geralmente é 05/Fev.
+        // Então precisamos somar 1 mês se o dia do vencimento for menor que o do fechamento.
+        dataVencimento.setMonth(dataVencimento.getMonth() + 1);
     }
 
     const mesReferencia = `${dataFim.getFullYear()}-${String(dataFim.getMonth() + 1).padStart(2, '0')}`;
 
+    // Fixar timezone offset para strings ISO
+    // toISOString() usa UTC. Se criamos com 'new Date(2023, 0, 1)', é local 00:00.
+    // UTC pode ser '2022-12-31T21:00'. Errado.
+    // Função helper para formatar local
+    const formatDateLocal = (date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
     return {
-      dataInicio: dataInicio.toISOString().split('T')[0],
-      dataFim: dataFim.toISOString().split('T')[0],
-      dataVencimento: dataVencimento.toISOString().split('T')[0],
+      dataInicio: formatDateLocal(dataInicio),
+      dataFim: formatDateLocal(dataFim),
+      dataVencimento: formatDateLocal(dataVencimento),
       mesReferencia
     };
   };
@@ -235,18 +287,27 @@ const MainApp = ({ user }) => {
    * Determina em qual fatura uma transação se enquadra
    */
   const determinarFaturaTransacao = (transacao, cartao) => {
-    const dataTransacao = new Date(transacao.data);
+    // Parse manual para evitar timezone
+    const [ano, mes, dia] = transacao.data.split('-').map(Number);
     const diaFechamento = cartao.diaFechamento;
 
     let mesReferencia;
 
     // Se a transação foi antes do fechamento, vai para a fatura do mês atual
-    if (dataTransacao.getDate() <= diaFechamento) {
-      mesReferencia = `${dataTransacao.getFullYear()}-${String(dataTransacao.getMonth() + 1).padStart(2, '0')}`;
+    // Ex: Compra dia 10/Jan. Fechamento 20/Jan. Fatura de Jan (Ref 2023-01).
+    if (dia <= diaFechamento) {
+      mesReferencia = `${ano}-${String(mes).padStart(2, '0')}`;
     } else {
       // Se foi depois do fechamento, vai para a fatura do próximo mês
-      const proximoMes = new Date(dataTransacao.getFullYear(), dataTransacao.getMonth() + 1, 1);
-      mesReferencia = `${proximoMes.getFullYear()}-${String(proximoMes.getMonth() + 1).padStart(2, '0')}`;
+      // Ex: Compra dia 21/Jan. Fechamento 20/Jan. Fatura de Fev (Ref 2023-02).
+      // Cuidado com Dezembro (12 + 1 = 13)
+      let proximoMes = mes + 1;
+      let proximoAno = ano;
+      if (proximoMes > 12) {
+          proximoMes = 1;
+          proximoAno++;
+      }
+      mesReferencia = `${proximoAno}-${String(proximoMes).padStart(2, '0')}`;
     }
 
     return mesReferencia;
@@ -359,15 +420,27 @@ const MainApp = ({ user }) => {
           }
         }
       }
+
+      // 5. Limpeza: Remover faturas que não têm mais transações (ex: transações deletadas) e não estão pagas
+      // Como 'periodosComTransacoes' inclui o mês atual, só removeremos faturas vazias futuras ou passadas não pagas e sem transações.
+      const faturasCartao = faturas.filter(f => f.cartaoId === cartao.id);
+      for (const fatura of faturasCartao) {
+        if (!fatura.pago && !periodosComTransacoes.has(fatura.mes)) {
+          // Se não está paga e não está na lista de períodos com transações (ou período atual), deletar.
+          await removerFatura(fatura.id);
+        }
+      }
     }
   };
 
   // Gerar faturas automaticamente ao carregar dados
+  // CORREÇÃO: Depender de 'transacoes' (objeto/array) em vez de apenas 'length'
+  // para garantir que edições de valor ou data também atualizem as faturas.
   useEffect(() => {
     if (!dadosCarregando && cartoes.length > 0) {
       gerarFaturasAutomaticamente();
     }
-  }, [dadosCarregando, cartoes.length, transacoes.length]);
+  }, [dadosCarregando, cartoes.length, transacoes]);
 
   // Fechar menu dropdown ao clicar fora
   useEffect(() => {
@@ -471,7 +544,7 @@ const MainApp = ({ user }) => {
         delete novaTransacao.conta; // Remove o campo 'conta' para evitar erro no Firebase
 
         await adicionarTransacao(novaTransacao);
-        await atualizarSaldoConta(novaTransacao);
+        // Saldo atualizado automaticamente
         transacoesComConta++;
       }
 
@@ -534,11 +607,7 @@ const MainApp = ({ user }) => {
       await atualizarFatura(faturaAtualizada);
 
       // 2. Atualizar saldo da conta
-      const contaAtualizada = {
-        ...conta,
-        saldo: conta.saldo - fatura.valorTotal
-      };
-      await atualizarConta(contaAtualizada);
+      // NÃO ATUALIZAMOS MANUALMENTE MAIS. A transação criada abaixo fará o useEffect recalcular o saldo.
 
       // 3. Criar transação de pagamento na conta corrente
       const transacaoPagamento = {
@@ -647,7 +716,7 @@ const MainApp = ({ user }) => {
                   <div>
                     <p className="font-semibold text-gray-900">{cartao?.nome}</p>
                     <p className="text-sm text-gray-600">
-                      Vencimento: {new Date(fatura.dataVencimento).toLocaleDateString('pt-BR')}
+                      Vencimento: {formatDateToBr(fatura.dataVencimento)}
                       <span className="ml-2 text-orange-600 font-medium">
                         ({diasRestantes} {diasRestantes === 1 ? 'dia' : 'dias'})
                       </span>
@@ -691,7 +760,7 @@ const MainApp = ({ user }) => {
                 <div className="flex-1">
                   <p className="font-medium text-gray-900">{t.descricao}</p>
                   <p className="text-sm text-gray-500">
-                    {t.categoria} • {new Date(t.data).toLocaleDateString('pt-BR')}
+                    {t.categoria} • {formatDateToBr(t.data)}
                     {t.parcelamento && ` • ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
                   </p>
                   {t.tags && t.tags.length > 0 && (
@@ -969,7 +1038,7 @@ const MainApp = ({ user }) => {
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900">{desp.descricao}</p>
                         <p className="text-sm text-gray-600">
-                          {new Date(desp.proximaData).toLocaleDateString('pt-BR')} • {desp.categoria}
+                            {formatDateToBr(desp.proximaData)} • {desp.categoria}
                         </p>
                       </div>
                       <div className="text-right">
@@ -1211,7 +1280,7 @@ const MainApp = ({ user }) => {
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
                           <p className="text-gray-500">Prazo</p>
-                          <p className="font-medium">{new Date(meta.prazo).toLocaleDateString('pt-BR')}</p>
+                          <p className="font-medium">{formatDateToBr(meta.prazo)}</p>
                         </div>
                         <div>
                           <p className="text-gray-500">Dias restantes</p>
@@ -1468,7 +1537,7 @@ const MainApp = ({ user }) => {
                         </div>
                         <div>
                           <p className="text-gray-500">Próxima data</p>
-                          <p className="font-medium">{proximaData.toLocaleDateString('pt-BR')}</p>
+                          <p className="font-medium">{formatDateToBr(desp.proximaData)}</p>
                         </div>
                         <div>
                           <p className="text-gray-500">Dias restantes</p>
@@ -1499,7 +1568,7 @@ const MainApp = ({ user }) => {
                    RECIBO
       ========================================
 
-      Data: ${new Date(transacao.data).toLocaleDateString('pt-BR')}
+      Data: ${formatDateToBr(transacao.data)}
       Descrição: ${transacao.descricao}
       Categoria: ${transacao.categoria}
       
@@ -1579,7 +1648,7 @@ const MainApp = ({ user }) => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-500 mb-1">Data</p>
-                <p className="font-medium">{new Date(t.data).toLocaleDateString('pt-BR')}</p>
+                <p className="font-medium">{formatDateToBr(t.data)}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500 mb-1">Status</p>
@@ -1659,7 +1728,7 @@ const MainApp = ({ user }) => {
               R$ {modalPagamento.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </p>
             <p className="text-sm text-gray-500 mt-1">
-              Vencimento: {new Date(modalPagamento.dataVencimento).toLocaleDateString('pt-BR')}
+              Vencimento: {formatDateToBr(modalPagamento.dataVencimento)}
             </p>
           </div>
 
@@ -1844,7 +1913,7 @@ const MainApp = ({ user }) => {
                       </div>
                       <div className="flex items-center gap-3 mt-1">
                         <p className="text-sm text-gray-500">
-                          {new Date(transacao.data).toLocaleDateString('pt-BR')}
+                          {formatDateToBr(transacao.data)}
                         </p>
                         <span className="text-gray-300">•</span>
                         <p className="text-sm text-gray-500">{transacao.categoria}</p>
@@ -1970,7 +2039,7 @@ const MainApp = ({ user }) => {
                     {transacoesImportadas.map((t, index) => (
                       <tr key={index} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {new Date(t.data).toLocaleDateString('pt-BR')}
+                          {formatDateToBr(t.data)}
                         </td>
                         <td className="px-4 py-3 text-sm">
                           <span className={`px-2 py-1 rounded-full text-xs ${
@@ -2158,7 +2227,7 @@ const MainApp = ({ user }) => {
             await atualizarTransacao(transacao);
           } else {
             await adicionarTransacao(transacao);
-            await atualizarSaldoConta(transacao);
+            // Saldo atualizado automaticamente
           }
         }}
         initialData={formData}

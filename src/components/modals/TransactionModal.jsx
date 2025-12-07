@@ -54,19 +54,51 @@ const TransactionModal = ({ isOpen, onClose, onSave, initialData, contas, cartoe
 
       const transactionsToSave = [];
 
+      // Função auxiliar para somar meses corretamente (evitando overflow de data e timezone)
+      const addMonths = (dateStr, months) => {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const date = new Date(year, month - 1 + months, day);
+
+        // Ajuste para o último dia do mês se houver overflow (ex: 31 Jan + 1 mês -> 28 Fev e não 2 ou 3 Mar)
+        // Se o dia original era 31, e o novo mês só tem 28, o JS normal pula para Março.
+        // Vamos verificar se o dia mudou.
+        if (date.getDate() !== day) {
+            // Voltar para o dia 0 do mês atual (último dia do mês anterior na conta do JS, mas aqui ajustado)
+            // Maneira mais segura: setar dia 1 do mês desejado, ir para o último dia.
+            const lastDayOfMonth = new Date(year, month - 1 + months + 1, 0).getDate();
+            const safeDay = Math.min(day, lastDayOfMonth);
+            return new Date(year, month - 1 + months, safeDay);
+        }
+        return date;
+      };
+
       for (let i = 0; i < numParcelas; i++) {
         const parcelaAtual = i + 1;
 
-        // Calcular data da parcela (incrementar mês)
-        const dataParcela = new Date(formData.data);
-        dataParcela.setMonth(dataParcela.getMonth() + i);
+        // Calcular data da parcela (incrementar mês) com segurança
+        const dataOriginal = formData.data;
+        const [yOrig, mOrig, dOrig] = dataOriginal.split('-').map(Number);
+
+        // Calcular novo mês e ano
+        let targetMonth = mOrig - 1 + i;
+        let targetYear = yOrig + Math.floor(targetMonth / 12);
+        targetMonth = targetMonth % 12;
+
+        // Calcular último dia do mês alvo
+        const lastDayOfTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+
+        // Ajustar dia (snap to end of month)
+        const targetDay = Math.min(dOrig, lastDayOfTargetMonth);
+
+        // Formatar YYYY-MM-DD manualmente para evitar timezone
+        const formattedDate = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
 
         const transacaoParcela = {
           ...baseTransaction,
           id: Date.now() + i, // IDs únicos sequenciais
           descricao: `${baseTransaction.descricao} (${parcelaAtual}/${numParcelas})`,
           valor: valorParcela, // O valor da transação é o valor da parcela
-          data: dataParcela.toISOString().split('T')[0],
+          data: formattedDate,
           parcelamento: {
             parcelas: numParcelas,
             valorParcela: valorParcela,
