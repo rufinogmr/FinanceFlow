@@ -459,7 +459,7 @@ const MainApp = ({ user }) => {
 
   const exportarCSV = () => {
     const headers = ['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor', 'Conta/Cartão', 'Status'];
-    const rows = transacoes.map(t => [
+    const rows = transacoes.filter(t => !t.deleted).map(t => [
       t.data,
       t.tipo,
       t.categoria,
@@ -1068,7 +1068,7 @@ const MainApp = ({ user }) => {
     );
 
     // Verificar se há transações vinculadas
-    const transacoesVinculadas = transacoes.filter(t => t.contaId === conta.id);
+    const transacoesVinculadas = transacoes.filter(t => t.contaId === conta.id && !t.deleted);
 
     let mensagemConfirmacao = `Deseja realmente excluir a conta "${conta.nome}"?\n\n`;
 
@@ -1108,7 +1108,7 @@ const MainApp = ({ user }) => {
     const faturasVinculadas = faturas.filter(f => f.cartaoId === cartao.id);
 
     // Verificar se há transações vinculadas
-    const transacoesVinculadas = transacoes.filter(t => t.cartaoId === cartao.id);
+    const transacoesVinculadas = transacoes.filter(t => t.cartaoId === cartao.id && !t.deleted);
 
     let mensagemConfirmacao = `Deseja realmente excluir o cartão "${cartao.nome}"?\n\n`;
 
