@@ -227,16 +227,18 @@ const MainApp = ({ user }) => {
     if (hoje.getDate() <= diaFechamento) {
       dataFim = new Date(hoje.getFullYear(), hoje.getMonth(), diaFechamento);
       dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, diaFechamento + 1);
-      dataVencimento = new Date(hoje.getFullYear(), hoje.getMonth(), diaVencimento);
     } else {
       // Se já passou o fechamento, a fatura atual vai deste mês até o próximo
       dataFim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, diaFechamento);
       dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), diaFechamento + 1);
-      dataVencimento = new Date(hoje.getFullYear(), hoje.getMonth() + 1, diaVencimento);
     }
 
-    // Se vencimento é menor que fechamento, vencimento é no mês seguinte ao fechamento
-    if (diaVencimento < diaFechamento) {
+    // Calcular data de vencimento com base na data de fechamento
+    // Se vencimento >= fechamento: vencimento é no mesmo mês que o fechamento
+    // Se vencimento < fechamento: vencimento é no mês seguinte ao fechamento
+    if (diaVencimento >= diaFechamento) {
+      dataVencimento = new Date(dataFim.getFullYear(), dataFim.getMonth(), diaVencimento);
+    } else {
       dataVencimento = new Date(dataFim.getFullYear(), dataFim.getMonth() + 1, diaVencimento);
     }
 
