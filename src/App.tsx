@@ -4,6 +4,7 @@ import LoginScreen from './LoginScreen';
 import { observarAuth, logout } from './firebase';
 import { useFirebaseData } from './useFirebaseData';
 import { importarArquivo } from './importUtils';
+import { formatDateToBr } from './utils';
 
 // Import Components
 import ContasCartoes from './components/ContasCartoes';
@@ -217,7 +218,20 @@ const MainApp = ({ user }) => {
    * Retorna { dataInicio, dataFim, dataVencimento, mesReferencia }
    */
   const calcularPeriodoFatura = (cartao, dataReferencia = new Date()) => {
-    const hoje = new Date(dataReferencia);
+    // Garantir que dataReferencia seja tratada como data local ou UTC consistente
+    // Se for string, converter com split para garantir dia correto
+    let ano, mes, dia;
+
+    if (typeof dataReferencia === 'string' && dataReferencia.includes('-')) {
+        [ano, mes, dia] = dataReferencia.split('-').map(Number);
+        mes = mes - 1; // JS months are 0-indexed
+    } else {
+        const d = new Date(dataReferencia);
+        ano = d.getFullYear();
+        mes = d.getMonth();
+        dia = d.getDate();
+    }
+
     const diaFechamento = cartao.diaFechamento;
     const diaVencimento = cartao.diaVencimento;
 
@@ -244,10 +258,21 @@ const MainApp = ({ user }) => {
 
     const mesReferencia = `${dataFim.getFullYear()}-${String(dataFim.getMonth() + 1).padStart(2, '0')}`;
 
+    // Fixar timezone offset para strings ISO
+    // toISOString() usa UTC. Se criamos com 'new Date(2023, 0, 1)', é local 00:00.
+    // UTC pode ser '2022-12-31T21:00'. Errado.
+    // Função helper para formatar local
+    const formatDateLocal = (date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
     return {
-      dataInicio: dataInicio.toISOString().split('T')[0],
-      dataFim: dataFim.toISOString().split('T')[0],
-      dataVencimento: dataVencimento.toISOString().split('T')[0],
+      dataInicio: formatDateLocal(dataInicio),
+      dataFim: formatDateLocal(dataFim),
+      dataVencimento: formatDateLocal(dataVencimento),
       mesReferencia
     };
   };
@@ -256,18 +281,27 @@ const MainApp = ({ user }) => {
    * Determina em qual fatura uma transação se enquadra
    */
   const determinarFaturaTransacao = (transacao, cartao) => {
-    const dataTransacao = new Date(transacao.data);
+    // Parse manual para evitar timezone
+    const [ano, mes, dia] = transacao.data.split('-').map(Number);
     const diaFechamento = cartao.diaFechamento;
 
     let mesReferencia;
 
     // Se a transação foi antes do fechamento, vai para a fatura do mês atual
-    if (dataTransacao.getDate() <= diaFechamento) {
-      mesReferencia = `${dataTransacao.getFullYear()}-${String(dataTransacao.getMonth() + 1).padStart(2, '0')}`;
+    // Ex: Compra dia 10/Jan. Fechamento 20/Jan. Fatura de Jan (Ref 2023-01).
+    if (dia <= diaFechamento) {
+      mesReferencia = `${ano}-${String(mes).padStart(2, '0')}`;
     } else {
       // Se foi depois do fechamento, vai para a fatura do próximo mês
-      const proximoMes = new Date(dataTransacao.getFullYear(), dataTransacao.getMonth() + 1, 1);
-      mesReferencia = `${proximoMes.getFullYear()}-${String(proximoMes.getMonth() + 1).padStart(2, '0')}`;
+      // Ex: Compra dia 21/Jan. Fechamento 20/Jan. Fatura de Fev (Ref 2023-02).
+      // Cuidado com Dezembro (12 + 1 = 13)
+      let proximoMes = mes + 1;
+      let proximoAno = ano;
+      if (proximoMes > 12) {
+          proximoMes = 1;
+          proximoAno++;
+      }
+      mesReferencia = `${proximoAno}-${String(proximoMes).padStart(2, '0')}`;
     }
 
     return mesReferencia;
@@ -700,7 +734,7 @@ const MainApp = ({ user }) => {
                   <div>
                     <p className="font-semibold text-gray-900">{cartao?.nome}</p>
                     <p className="text-sm text-gray-600">
-                      Vencimento: {new Date(fatura.dataVencimento).toLocaleDateString('pt-BR')}
+                      Vencimento: {formatDateToBr(fatura.dataVencimento)}
                       <span className="ml-2 text-orange-600 font-medium">
                         ({diasRestantes} {diasRestantes === 1 ? 'dia' : 'dias'})
                       </span>
@@ -744,7 +778,7 @@ const MainApp = ({ user }) => {
                 <div className="flex-1">
                   <p className="font-medium text-gray-900">{t.descricao}</p>
                   <p className="text-sm text-gray-500">
-                    {t.categoria} • {new Date(t.data).toLocaleDateString('pt-BR')}
+                    {t.categoria} • {formatDateToBr(t.data)}
                     {t.parcelamento && ` • ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
                   </p>
                   {t.tags && t.tags.length > 0 && (
@@ -1025,7 +1059,7 @@ const MainApp = ({ user }) => {
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900">{desp.descricao}</p>
                         <p className="text-sm text-gray-600">
-                          {new Date(desp.proximaData).toLocaleDateString('pt-BR')} • {desp.categoria}
+                            {formatDateToBr(desp.proximaData)} • {desp.categoria}
                         </p>
                       </div>
                       <div className="text-right">
@@ -1269,7 +1303,7 @@ const MainApp = ({ user }) => {
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
                           <p className="text-gray-500">Prazo</p>
-                          <p className="font-medium">{new Date(meta.prazo).toLocaleDateString('pt-BR')}</p>
+                          <p className="font-medium">{formatDateToBr(meta.prazo)}</p>
                         </div>
                         <div>
                           <p className="text-gray-500">Dias restantes</p>
@@ -1526,7 +1560,7 @@ const MainApp = ({ user }) => {
                         </div>
                         <div>
                           <p className="text-gray-500">Próxima data</p>
-                          <p className="font-medium">{proximaData.toLocaleDateString('pt-BR')}</p>
+                          <p className="font-medium">{formatDateToBr(desp.proximaData)}</p>
                         </div>
                         <div>
                           <p className="text-gray-500">Dias restantes</p>
@@ -1557,7 +1591,7 @@ const MainApp = ({ user }) => {
                    RECIBO
       ========================================
 
-      Data: ${new Date(transacao.data).toLocaleDateString('pt-BR')}
+      Data: ${formatDateToBr(transacao.data)}
       Descrição: ${transacao.descricao}
       Categoria: ${transacao.categoria}
       
@@ -1637,7 +1671,7 @@ const MainApp = ({ user }) => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-500 mb-1">Data</p>
-                <p className="font-medium">{new Date(t.data).toLocaleDateString('pt-BR')}</p>
+                <p className="font-medium">{formatDateToBr(t.data)}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500 mb-1">Status</p>
@@ -1717,7 +1751,7 @@ const MainApp = ({ user }) => {
               R$ {modalPagamento.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </p>
             <p className="text-sm text-gray-500 mt-1">
-              Vencimento: {new Date(modalPagamento.dataVencimento).toLocaleDateString('pt-BR')}
+              Vencimento: {formatDateToBr(modalPagamento.dataVencimento)}
             </p>
           </div>
 
@@ -1906,7 +1940,7 @@ const MainApp = ({ user }) => {
                       </div>
                       <div className="flex items-center gap-3 mt-1">
                         <p className="text-sm text-gray-500">
-                          {new Date(transacao.data).toLocaleDateString('pt-BR')}
+                          {formatDateToBr(transacao.data)}
                         </p>
                         <span className="text-gray-300">•</span>
                         <p className="text-sm text-gray-500">{transacao.categoria}</p>
@@ -2032,7 +2066,7 @@ const MainApp = ({ user }) => {
                     {transacoesImportadas.map((t, index) => (
                       <tr key={index} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {new Date(t.data).toLocaleDateString('pt-BR')}
+                          {formatDateToBr(t.data)}
                         </td>
                         <td className="px-4 py-3 text-sm">
                           <span className={`px-2 py-1 rounded-full text-xs ${

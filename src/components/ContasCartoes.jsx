@@ -3,6 +3,7 @@ import {
   Wallet, CreditCard, Plus, Download, Upload, MoreVertical,
   Edit2, Trash2, ChevronDown, ChevronRight, Filter, FileText, Tag
 } from 'lucide-react';
+import { formatDateToBr } from '../utils';
 
 const ContasCartoes = ({
   contas,
@@ -292,12 +293,12 @@ const ContasCartoes = ({
                       <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
                         <div className="flex justify-between items-center">
                           <div>
-                            <p className="text-xs text-orange-700 font-medium">Fatura Aberta ({new Date(faturaAtual.dataVencimento).toLocaleDateString('pt-BR', { month: 'short' })})</p>
+                              <p className="text-xs text-orange-700 font-medium">Fatura Aberta ({formatDateToBr(faturaAtual.dataVencimento, { month: 'short' })})</p>
                             <p className="text-sm font-bold text-gray-900">
                               R$ {faturaAtual.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </p>
                             <p className="text-xs text-orange-600">
-                              Vence: {new Date(faturaAtual.dataVencimento).toLocaleDateString('pt-BR')}
+                                Vence: {formatDateToBr(faturaAtual.dataVencimento)}
                             </p>
                           </div>
                           <button
@@ -367,7 +368,7 @@ const ContasCartoes = ({
                                 >
                                     <div className="flex-1 cursor-pointer" onClick={() => onSelectTransaction && onSelectTransaction(t)}>
                                     <p className="font-medium text-gray-900">{t.descricao}</p>
-                                    <p className="text-gray-500">{new Date(t.data).toLocaleDateString('pt-BR')}</p>
+                                    <p className="text-gray-500">{formatDateToBr(t.data)}</p>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <p className="font-semibold text-gray-900">
@@ -392,7 +393,7 @@ const ContasCartoes = ({
                                 <div key={f.id} className="flex justify-between items-center p-2 hover:bg-gray-50 rounded text-xs">
                                   <div>
                                     <p className="font-medium text-gray-900">
-                                      {new Date(f.dataVencimento).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
+                                      {formatDateToBr(f.dataVencimento, { month: 'short', year: 'numeric' })}
                                     </p>
                                     <p className={`text-xs ${f.pago ? 'text-green-600' : 'text-orange-600'}`}>
                                       {f.pago ? 'Paga' : 'Aberta'}
@@ -553,7 +554,7 @@ const ContasCartoes = ({
                       >
                         <p className="font-medium text-gray-900 text-sm">{t.descricao}</p>
                         <p className="text-xs text-gray-500">
-                          {new Date(t.data).toLocaleDateString('pt-BR')} • {t.categoria}
+                          {formatDateToBr(t.data)} • {t.categoria}
                           {t.parcelamento && ` • ${t.parcelamento.parcelaAtual}/${t.parcelamento.parcelas}x`}
                         </p>
                       </div>
