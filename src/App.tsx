@@ -483,8 +483,7 @@ const MainApp = ({ user }) => {
              !t.deleted;
     })
     .reduce((acc, t) => {
-      // CORREÇÃO: Se tiver parcelamento, usar valorParcela; senão usar valor
-      if (t.parcelamento) return acc + t.parcelamento.valorParcela;
+      // CORREÇÃO: Usar sempre t.valor, pois cada parcela já tem o valor correto individual
       return acc + t.valor;
     }, 0);
 
