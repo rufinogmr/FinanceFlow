@@ -232,6 +232,9 @@ const MainApp = ({ user }) => {
         dia = d.getDate();
     }
 
+    // Criar objeto Date a partir dos valores parseados
+    const hoje = new Date(ano, mes, dia);
+
     const diaFechamento = cartao.diaFechamento;
     const diaVencimento = cartao.diaVencimento;
 
