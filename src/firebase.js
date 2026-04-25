@@ -3,20 +3,16 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPasswor
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, query, where, orderBy, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 // 🔥 CONFIGURAÇÃO DO FIREBASE
-// ⚠️ IMPORTANTE: Substitua pelos seus dados do Firebase Console
-// 👉 Acesse: https://console.firebase.google.com/
-// 1. Crie um projeto
-// 2. Ative Authentication (Google + Email/Password)
-// 3. Ative Firestore Database (modo teste)
-// 4. Copie as configs abaixo em: Project Settings > General > Your apps
+// As credenciais são lidas do arquivo .env (nunca commitar o .env).
+// Para configurar: copie .env.example para .env e preencha com seus dados do Firebase Console.
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDtoJSAQV3yf_opvLT4cavdO19OJ4PhXo4",
-  authDomain: "fiinanceflow.firebaseapp.com",
-  projectId: "fiinanceflow",
-  storageBucket: "fiinanceflow.firebasestorage.app",
-  messagingSenderId: "609048037253",
-  appId: "1:609048037253:web:af05d119d6bb015e5266ec",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 // Inicializa Firebase
