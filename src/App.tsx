@@ -5,6 +5,15 @@ import { observarAuth, logout } from './firebase';
 import { useFirebaseData } from './useFirebaseData';
 import { importarArquivo } from './importUtils';
 import { formatDateToBr } from './utils';
+import {
+  calcularSaldoConta,
+  determinarFaturaTransacao,
+  calcularStatusFatura,
+  calcularTotalFatura,
+  calcularPeriodoFatura,
+  calcularReceitasMes,
+  calcularDespesasMes,
+} from './financeLogic';
 
 // Import Components
 import ContasCartoes from './components/ContasCartoes';
@@ -96,35 +105,12 @@ const MainApp = ({ user }) => {
     if (dadosCarregando || contas.length === 0) return;
 
     contas.forEach(conta => {
-       const saldoInicial = conta.saldoInicial !== undefined ? parseFloat(conta.saldoInicial) : 0;
-
-       // CORREÇÃO: Filtrar transações desta conta
-       // ✅ Apenas transações com contaId E SEM cartaoId afetam o saldo
-       // ✅ Transações de cartão (com cartaoId) NÃO afetam o saldo da conta
-       // ✅ Pagamentos de fatura (contaId + cartaoId: null) SIM afetam o saldo
-       const transacoesConta = transacoes.filter(t =>
-         t.contaId === conta.id &&
-         !t.cartaoId && // ✅ EXCLUIR transações de cartão de crédito
-         t.status === 'confirmado' &&
-         !t.deleted
-       );
-
-       const receitas = transacoesConta
-         .filter(t => t.tipo === 'receita')
-         .reduce((acc, t) => acc + t.valor, 0);
-
-       const despesas = transacoesConta
-         .filter(t => t.tipo === 'despesa')
-         .reduce((acc, t) => acc + t.valor, 0);
-
-       const saldoCalculado = saldoInicial + receitas - despesas;
-
-       // Se houver discrepância (com margem para erro de ponto flutuante), atualiza no banco
-       if (Math.abs(conta.saldo - saldoCalculado) > 0.01) {
-         atualizarConta({ ...conta, saldo: saldoCalculado });
-       }
+      const saldoCalculado = calcularSaldoConta(conta, transacoes);
+      if (Math.abs(conta.saldo - saldoCalculado) > 0.01) {
+        atualizarConta({ ...conta, saldo: saldoCalculado });
+      }
     });
-  }, [transacoes, contas, dadosCarregando]); // Depende de transacoes e contas
+  }, [transacoes, contas, dadosCarregando]);
 
   const [activeTab, setActiveTab] = useState('visao-geral');
   const [mostrarSaldos, setMostrarSaldos] = useState(true);
@@ -212,136 +198,11 @@ const MainApp = ({ user }) => {
   };
 
   // ==================== FUNÇÕES UTILITÁRIAS DE CICLO DE FATURA ====================
+  // Thin wrappers over pure functions from financeLogic.js (imported at top).
+  // Component-scoped `transacoes` is passed explicitly to keep logic pure and testable.
 
-  /**
-   * Calcula o período da fatura baseado no dia de fechamento
-   * Retorna { dataInicio, dataFim, dataVencimento, mesReferencia }
-   */
-  const calcularPeriodoFatura = (cartao, dataReferencia = new Date()) => {
-    // Garantir que dataReferencia seja tratada como data local ou UTC consistente
-    // Se for string, converter com split para garantir dia correto
-    let ano, mes, dia;
-
-    if (typeof dataReferencia === 'string' && dataReferencia.includes('-')) {
-        [ano, mes, dia] = dataReferencia.split('-').map(Number);
-        mes = mes - 1; // JS months are 0-indexed
-    } else {
-        const d = new Date(dataReferencia);
-        ano = d.getFullYear();
-        mes = d.getMonth();
-        dia = d.getDate();
-    }
-
-    const diaFechamento = cartao.diaFechamento;
-    const diaVencimento = cartao.diaVencimento;
-
-    let dataFim, dataInicio, dataVencimento;
-
-    // Se ainda não passou o fechamento deste mês, a fatura atual vai do mês passado até este mês
-    if (hoje.getDate() <= diaFechamento) {
-      dataFim = new Date(hoje.getFullYear(), hoje.getMonth(), diaFechamento);
-      dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, diaFechamento + 1);
-    } else {
-      // Se já passou o fechamento, a fatura atual vai deste mês até o próximo
-      dataFim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, diaFechamento);
-      dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), diaFechamento + 1);
-    }
-
-    // Calcular data de vencimento com base na data de fechamento
-    // Se vencimento >= fechamento: vencimento é no mesmo mês que o fechamento
-    // Se vencimento < fechamento: vencimento é no mês seguinte ao fechamento
-    if (diaVencimento >= diaFechamento) {
-      dataVencimento = new Date(dataFim.getFullYear(), dataFim.getMonth(), diaVencimento);
-    } else {
-      dataVencimento = new Date(dataFim.getFullYear(), dataFim.getMonth() + 1, diaVencimento);
-    }
-
-    const mesReferencia = `${dataFim.getFullYear()}-${String(dataFim.getMonth() + 1).padStart(2, '0')}`;
-
-    // Fixar timezone offset para strings ISO
-    // toISOString() usa UTC. Se criamos com 'new Date(2023, 0, 1)', é local 00:00.
-    // UTC pode ser '2022-12-31T21:00'. Errado.
-    // Função helper para formatar local
-    const formatDateLocal = (date) => {
-        const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const d = String(date.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-    };
-
-    return {
-      dataInicio: formatDateLocal(dataInicio),
-      dataFim: formatDateLocal(dataFim),
-      dataVencimento: formatDateLocal(dataVencimento),
-      mesReferencia
-    };
-  };
-
-  /**
-   * Determina em qual fatura uma transação se enquadra
-   */
-  const determinarFaturaTransacao = (transacao, cartao) => {
-    // Parse manual para evitar timezone
-    const [ano, mes, dia] = transacao.data.split('-').map(Number);
-    const diaFechamento = cartao.diaFechamento;
-
-    let mesReferencia;
-
-    // Se a transação foi antes do fechamento, vai para a fatura do mês atual
-    // Ex: Compra dia 10/Jan. Fechamento 20/Jan. Fatura de Jan (Ref 2023-01).
-    if (dia <= diaFechamento) {
-      mesReferencia = `${ano}-${String(mes).padStart(2, '0')}`;
-    } else {
-      // Se foi depois do fechamento, vai para a fatura do próximo mês
-      // Ex: Compra dia 21/Jan. Fechamento 20/Jan. Fatura de Fev (Ref 2023-02).
-      // Cuidado com Dezembro (12 + 1 = 13)
-      let proximoMes = mes + 1;
-      let proximoAno = ano;
-      if (proximoMes > 12) {
-          proximoMes = 1;
-          proximoAno++;
-      }
-      mesReferencia = `${proximoAno}-${String(proximoMes).padStart(2, '0')}`;
-    }
-
-    return mesReferencia;
-  };
-
-  /**
-   * Calcula o status de uma fatura
-   */
-  const calcularStatusFatura = (fatura) => {
-    if (fatura.pago) return 'paga';
-
-    const hoje = new Date();
-    const vencimento = new Date(fatura.dataVencimento);
-    const fechamento = new Date(fatura.dataFechamento);
-
-    if (hoje > vencimento) return 'vencida';
-    if (hoje > fechamento) return 'fechada';
-    return 'aberta';
-  };
-
-  /**
-   * Calcula o total de uma fatura baseado nas transações do período
-   */
-  const calcularTotalFaturaCompleto = (cartaoId, periodo) => {
-    const transacoesCartao = transacoes.filter(t => {
-      if (t.cartaoId !== cartaoId) return false;
-      if (t.categoria === 'Fatura Cartão') return false; // Não incluir pagamentos de fatura
-      if (t.deleted) return false; // CORREÇÃO: Não incluir transações deletadas
-
-      const dataT = t.data;
-      return dataT >= periodo.dataInicio && dataT <= periodo.dataFim;
-    });
-
-    return transacoesCartao.reduce((acc, t) => {
-      // CORREÇÃO: Para transações parceladas, o valor já está correto em t.valor
-      // pois cada parcela é criada com o valor individual da parcela
-      // O campo parcelamento.valorParcela é apenas informativo
-      return acc + t.valor;
-    }, 0);
-  };
+  const calcularTotalFaturaCompleto = (cartaoId, periodo) =>
+    calcularTotalFatura(cartaoId, periodo, transacoes);
 
   /**
    * Gera faturas automaticamente para todos os cartões
@@ -462,30 +323,8 @@ const MainApp = ({ user }) => {
   const mesAtual = new Date().getMonth();
   const anoAtual = new Date().getFullYear();
 
-  const receitasMes = transacoes
-    .filter(t => {
-      const dataT = new Date(t.data);
-      return t.tipo === 'receita' &&
-             dataT.getMonth() === mesAtual &&
-             dataT.getFullYear() === anoAtual &&
-             t.status === 'confirmado' &&
-             !t.deleted;
-    })
-    .reduce((acc, t) => acc + t.valor, 0);
-
-  const despesasMes = transacoes
-    .filter(t => {
-      const dataT = new Date(t.data);
-      return t.tipo === 'despesa' &&
-             dataT.getMonth() === mesAtual &&
-             dataT.getFullYear() === anoAtual &&
-             (t.status === 'confirmado' || t.status === 'agendado') &&
-             !t.deleted;
-    })
-    .reduce((acc, t) => {
-      // CORREÇÃO: Usar sempre t.valor, pois cada parcela já tem o valor correto individual
-      return acc + t.valor;
-    }, 0);
+  const receitasMes = calcularReceitasMes(transacoes, mesAtual, anoAtual);
+  const despesasMes = calcularDespesasMes(transacoes, mesAtual, anoAtual);
 
   const faturasAbertas = faturas.filter(f => !f.pago);
   const totalFaturasAbertas = faturasAbertas.reduce((acc, f) => acc + f.valorTotal, 0);

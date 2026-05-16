@@ -8,4 +8,8 @@ export default defineConfig({
     react(),
     nodePolyfills(),
   ],
+  test: {
+    environment: 'node',
+    include: ['src/__tests__/**/*.test.js'],
+  },
 })
