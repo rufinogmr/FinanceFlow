@@ -17,6 +17,7 @@ import {
 
 // Import Components
 import ContasCartoes from './components/ContasCartoes';
+import AIPanel from './components/AIPanel';
 import AccountModal from './components/modals/AccountModal';
 import CardModal from './components/modals/CardModal';
 import TransactionModal from './components/modals/TransactionModal';
@@ -2007,7 +2008,8 @@ const MainApp = ({ user }) => {
             {[
               { id: 'visao-geral', label: 'Visão Geral', icon: <BarChart3 size={18} /> },
               { id: 'contas-cartoes', label: 'Contas & Cartões', icon: <Wallet size={18} /> },
-              { id: 'planejamento', label: 'Planejamento', icon: <Target size={18} /> }
+              { id: 'planejamento', label: 'Planejamento', icon: <Target size={18} /> },
+              { id: 'ia', label: 'Análise IA', icon: <TrendingUp size={18} /> }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -2056,6 +2058,7 @@ const MainApp = ({ user }) => {
           />
         )}
         {activeTab === 'planejamento' && renderPlanejamento()}
+        {activeTab === 'ia' && <AIPanel transacoes={transacoes} />}
       </div>
 
       <AccountModal

@@ -1,5 +1,10 @@
 // Pure business logic functions extracted from App.tsx for testability.
 // These functions have no React or Firebase dependencies.
+import { Decimal } from 'decimal.js';
+
+Decimal.set({ precision: 20, rounding: Decimal.ROUND_HALF_UP });
+
+const d = (v) => new Decimal(v ?? 0);
 
 /**
  * Calculates the current balance of a bank account.
@@ -7,7 +12,7 @@
  * and are NOT credit card transactions affect the balance.
  */
 export const calcularSaldoConta = (conta, transacoes) => {
-  const saldoInicial = conta.saldoInicial !== undefined ? parseFloat(conta.saldoInicial) : 0;
+  const saldoInicial = d(conta.saldoInicial);
 
   const transacoesConta = transacoes.filter(t =>
     t.contaId === conta.id &&
@@ -18,13 +23,13 @@ export const calcularSaldoConta = (conta, transacoes) => {
 
   const receitas = transacoesConta
     .filter(t => t.tipo === 'receita')
-    .reduce((acc, t) => acc + t.valor, 0);
+    .reduce((acc, t) => acc.plus(d(t.valor)), d(0));
 
   const despesas = transacoesConta
     .filter(t => t.tipo === 'despesa')
-    .reduce((acc, t) => acc + t.valor, 0);
+    .reduce((acc, t) => acc.plus(d(t.valor)), d(0));
 
-  return saldoInicial + receitas - despesas;
+  return saldoInicial.plus(receitas).minus(despesas).toNumber();
 };
 
 /**
@@ -77,22 +82,21 @@ export const calcularTotalFatura = (cartaoId, periodo, transacoes) => {
     return t.data >= periodo.dataInicio && t.data <= periodo.dataFim;
   });
 
-  return transacoesCartao.reduce((acc, t) => acc + t.valor, 0);
+  return transacoesCartao
+    .reduce((acc, t) => acc.plus(d(t.valor)), d(0))
+    .toNumber();
 };
 
 const formatDateLocal = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  const dv = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dv}`;
 };
 
 /**
  * Calculates the full invoice period for a credit card given a reference date.
  * Returns { dataInicio, dataFim, dataVencimento, mesReferencia }.
- *
- * Fixed: the original App.tsx version referenced an undefined `hoje` variable.
- * Here we build `hoje` from the parsed dataReferencia.
  */
 export const calcularPeriodoFatura = (cartao, dataReferencia = new Date()) => {
   let ano, mes, dia;
@@ -101,13 +105,12 @@ export const calcularPeriodoFatura = (cartao, dataReferencia = new Date()) => {
     [ano, mes, dia] = dataReferencia.split('-').map(Number);
     mes = mes - 1; // JS months are 0-indexed
   } else {
-    const d = new Date(dataReferencia);
-    ano = d.getFullYear();
-    mes = d.getMonth();
-    dia = d.getDate();
+    const dObj = new Date(dataReferencia);
+    ano = dObj.getFullYear();
+    mes = dObj.getMonth();
+    dia = dObj.getDate();
   }
 
-  // Build local Date so comparisons are consistent (fixes the undefined `hoje` bug)
   const hoje = new Date(ano, mes, dia);
   const diaFechamento = cartao.diaFechamento;
   const diaVencimento = cartao.diaVencimento;
@@ -153,7 +156,8 @@ export const calcularReceitasMes = (transacoes, mes, ano) => {
              t.status === 'confirmado' &&
              !t.deleted;
     })
-    .reduce((acc, t) => acc + t.valor, 0);
+    .reduce((acc, t) => acc.plus(d(t.valor)), d(0))
+    .toNumber();
 };
 
 /**
@@ -171,5 +175,6 @@ export const calcularDespesasMes = (transacoes, mes, ano) => {
              (t.status === 'confirmado' || t.status === 'agendado') &&
              !t.deleted;
     })
-    .reduce((acc, t) => acc + t.valor, 0);
+    .reduce((acc, t) => acc.plus(d(t.valor)), d(0))
+    .toNumber();
 };
